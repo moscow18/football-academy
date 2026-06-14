@@ -1800,37 +1800,64 @@ const Attendance = {
 
 // ========== PAYMENTS ==========
 const Payments = {
-  tab: 'payments',
-
-  render() {
+  render(view = 'payments') {
+    const cm = document.getElementById('payMonth') ? document.getElementById('payMonth').value : DB.currentMonth();
+    let typeFilter = DB.get('payTypeFilter') || 'all';
     const players = App.getMyPlayers().filter(p => p.status === 'active');
     const allPayments = DB.get('payments') || [];
-    const cm = DB.currentMonth();
-
+    
     let html = `
-    <div class="tabs">
-      <button class="tab-btn ${Payments.tab==='payments'?'active':''}" onclick="Payments.tab='payments';Payments.render()">المدفوعات</button>
-      <button class="tab-btn ${Payments.tab==='debts'?'active':''}" onclick="Payments.tab='debts';Payments.render()">المديونية</button>
+    <div class="filter-bar">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn ${view==='payments'?'btn-primary':'btn-outline'}" onclick="Payments.render('payments')">سجل المدفوعات</button>
+        <button class="btn ${view==='debts'?'btn-primary':'btn-outline'}" onclick="Payments.render('debts')">المديونية (المتأخرات)</button>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <select id="payTypeFilter" class="search-box" style="width:auto;padding:8px" onchange="DB.set('payTypeFilter', this.value); Payments.render('${view}')">
+          <option value="all" ${typeFilter==='all'?'selected':''}>الكل (شهري وسنوي)</option>
+          <option value="monthly" ${typeFilter==='monthly'?'selected':''}>الاشتراكات الشهرية فقط</option>
+          <option value="annual" ${typeFilter==='annual'?'selected':''}>الأقساط السنوية فقط</option>
+        </select>
+        <input type="month" id="payMonth" value="${cm}" class="search-box" style="width:auto;padding:8px" onchange="Payments.render('${view}')">
+      </div>
     </div>`;
 
-    if (Payments.tab === 'payments') {
+    if (view === 'payments') {
       html += `
       <div class="filter-bar">
         <button class="btn btn-primary" onclick="Payments.showPaymentForm()"><i class="fas fa-plus"></i> تسجيل دفعة</button>
-      </div>
-      <div class="table-container"><div class="table-responsive"><table>
-        <thead><tr><th>اللاعب</th><th>التاريخ</th><th>المبلغ</th><th>الطريقة</th><th>ملاحظات</th><th>إجراءات</th></tr></thead><tbody>`;
-      const monthPayments = allPayments.filter(p => DB.getMonth(p.date) === cm).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
-      if (monthPayments.length === 0) {
-        html += `<tr><td colspan="6"><div class="empty-state"><i class="fas fa-money-bill-wave"></i><p>لا توجد مدفوعات هذا الشهر</p></div></td></tr>`;
+      </div>`;
+      
+      const monthPayments = allPayments.filter(p => DB.getMonth(p.date) === cm);
+      
+      let filteredPayments = monthPayments;
+      if (typeFilter !== 'all') {
+        filteredPayments = monthPayments.filter(p => {
+          const player = players.find(x => x.id === p.playerId);
+          return player && player.paymentType === typeFilter;
+        });
       }
-      monthPayments.forEach(p => {
-        const player = players.find(x => x.id === p.playerId) || App.getMyPlayers().find(x => x.id === p.playerId);
+
+      const total = filteredPayments.reduce((s,p) => s + p.amount, 0);
+
+      html += `<div class="table-container">
+        <div class="table-header">
+          <h4>سجل المدفوعات</h4>
+          <span class="badge-status badge-success">الإجمالي: ${DB.fmtMoney(total)} ج</span>
+        </div>
+        <div class="table-responsive"><table>
+        <thead><tr><th>التاريخ</th><th>اللاعب</th><th>النوع</th><th>المبلغ</th><th>ملاحظات</th><th>الإجراء</th></tr></thead><tbody>`;
+      if (filteredPayments.length === 0) {
+        html += `<tr><td colspan="6"><div class="empty-state"><i class="fas fa-folder-open"></i><p>لا توجد مدفوعات مسجلة في هذا القسم</p></div></td></tr>`;
+      }
+      filteredPayments.sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date)).forEach(p => {
+        const player = players.find(x => x.id === p.playerId);
+        const typeBadge = player && player.paymentType === 'annual' ? '<span class="badge-status badge-warning">سنوي</span>' : '<span class="badge-status badge-success">شهري</span>';
         html += `<tr>
-          <td style="font-weight:600">${player?player.name:'-'}</td>
           <td>${p.date}</td>
+          <td style="font-weight:600">${player ? player.name : 'غير معروف'}</td>
+          <td>${typeBadge}</td>
           <td class="paid-amount">${DB.fmtMoney(p.amount)} ج</td>
-          <td>${p.method==='cash'?'كاش':'تحويل'}</td>
           <td>${p.notes||'-'}</td>
           <td><button class="btn btn-sm btn-outline" onclick="Invoices.generateInvoice('${p.id}')"><i class="fas fa-file-invoice"></i></button></td>
         </tr>`;
@@ -1853,20 +1880,27 @@ const Payments = {
           }
         }
       });
-      debtList.sort((a,b) => b.owed - a.owed);
+      
+      let filteredDebts = debtList;
+      if (typeFilter !== 'all') {
+        filteredDebts = debtList.filter(d => d.type === typeFilter);
+      }
+      
+      filteredDebts.sort((a,b) => b.owed - a.owed);
 
       html += `<div class="table-container"><div class="table-header"><h4><i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i> قائمة المديونية</h4></div>
         <div class="table-responsive"><table>
         <thead><tr><th>اللاعب</th><th>المجموعة</th><th>النوع</th><th>المطلوب (حتى الآن)</th><th>المدفوع</th><th>المتأخر</th><th>تذكير</th></tr></thead><tbody>`;
-      if (debtList.length === 0) {
+      if (filteredDebts.length === 0) {
         html += `<tr><td colspan="7"><div class="empty-state"><i class="fas fa-check-circle" style="color:var(--success)"></i><p>لا توجد مديونية! 🎉</p></div></td></tr>`;
       }
-      debtList.forEach(d => {
+      filteredDebts.forEach(d => {
         const typeStr = d.type === 'monthly' ? 'شهري' : 'قسط سنوي';
+        const badgeClass = d.type === 'monthly' ? 'badge-success' : 'badge-warning';
         html += `<tr>
           <td style="font-weight:600">${d.player.name}</td>
           <td>${d.player.group}</td>
-          <td><span class="badge-status badge-warning">${typeStr}</span></td>
+          <td><span class="badge-status ${badgeClass}">${typeStr}</span></td>
           <td>${DB.fmtMoney(Math.round(d.expected))} ج</td>
           <td class="paid-amount">${DB.fmtMoney(Math.round(d.paid))} ج</td>
           <td class="debt-amount">${DB.fmtMoney(Math.round(d.owed))} ج</td>
