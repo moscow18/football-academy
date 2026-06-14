@@ -1006,7 +1006,7 @@ function seedData() {
     { id:'p1', name:'يوسف أحمد', phone:'01111111111', parentPhone:'01111111112', age:9, group:'U10', coachId:'c1', regDate, status:'active', paymentType:'monthly', monthlyFee:500, sessionFee:0, notes:'' },
     { id:'p2', name:'عمر محمد', phone:'01222222221', parentPhone:'01222222222', age:11, group:'U12', coachId:'c1', regDate, status:'active', paymentType:'monthly', monthlyFee:550, sessionFee:0, notes:'' },
     { id:'p3', name:'كريم حسن', phone:'01333333331', parentPhone:'01333333332', age:13, group:'U14', coachId:'c2', regDate, status:'active', paymentType:'monthly', monthlyFee:600, sessionFee:0, notes:'' },
-    { id:'p4', name:'ياسين علي', phone:'01444444441', parentPhone:'01444444442', age:15, group:'U16', coachId:'c2', regDate, status:'active', paymentType:'periodic', monthlyFee:0, sessionFee:75, notes:'يدفع بالحصة' },
+    { id:'p4', name:'ياسين علي', phone:'01444444441', parentPhone:'01444444442', age:15, group:'U16', coachId:'c2', regDate, status:'active', paymentType:'annual', monthlyFee:0, annualFee:6000, notes:'يدفع أقساط سنوية' },
     { id:'p5', name:'حمزة سمير', phone:'01555555551', parentPhone:'01555555552', age:10, group:'U10', coachId:'c1', regDate, status:'active', paymentType:'monthly', monthlyFee:500, sessionFee:0, notes:'' },
     { id:'p6', name:'مصطفى خالد', phone:'01666666661', parentPhone:'01666666662', age:12, group:'U12', coachId:'c1', regDate, status:'active', paymentType:'monthly', monthlyFee:550, sessionFee:0, notes:'' },
     { id:'p7', name:'أدهم طارق', phone:'01777777771', parentPhone:'01777777772', age:14, group:'U14', coachId:'c2', regDate, status:'inactive', paymentType:'monthly', monthlyFee:600, sessionFee:0, notes:'انتقل لأكاديمية أخرى' },
@@ -1214,6 +1214,29 @@ const App = {
   getMyCoaches() {
     const coaches = DB.get('coaches') || [];
     return coaches;
+  },
+
+  getAnnualDebt(player, payments) {
+    if (player.paymentType !== 'annual') return 0;
+    if (!player.annualFee) return 0;
+    
+    const regDate = DB.parseDate(player.regDate);
+    const now = new Date();
+    const totalMonthsElapsed = (now.getFullYear() - regDate.getFullYear()) * 12 + (now.getMonth() - regDate.getMonth());
+    
+    let expectedPaid = 0;
+    const yearsElapsed = Math.floor(totalMonthsElapsed / 12);
+    expectedPaid += yearsElapsed * player.annualFee; // Full past years
+    
+    const monthsInCurrentCycle = totalMonthsElapsed % 12;
+    let installmentsDue = 1; // 1st installment upon registration
+    if (monthsInCurrentCycle >= 4) installmentsDue = 2; // 2nd after 4 months
+    if (monthsInCurrentCycle >= 8) installmentsDue = 3; // 3rd after 8 months
+    
+    expectedPaid += (player.annualFee / 3) * installmentsDue;
+    
+    const allPaid = payments.filter(p => p.playerId === player.id).reduce((s, p) => s + p.amount, 0);
+    return Math.max(0, expectedPaid - allPaid);
   }
 };
 
@@ -1282,7 +1305,7 @@ const Dashboard = {
 
     // Calculate stats
     const totalActive = players.length;
-    const expectedRevenue = players.reduce((s,p) => s + (p.paymentType==='monthly' ? (p.monthlyFee||0) : 0), 0);
+    const expectedRevenue = Math.round(players.reduce((s,p) => s + (p.paymentType==='monthly' ? (p.monthlyFee||0) : (p.paymentType==='annual' ? ((p.annualFee||0)/12) : 0)), 0));
     const monthPayments = payments.filter(p => DB.getMonth(p.date) === cm);
     const totalCollected = monthPayments.reduce((s,p) => s + (p.amount||0), 0);
     const totalDebt = expectedRevenue - totalCollected;
@@ -1303,11 +1326,15 @@ const Dashboard = {
     // Overdue debts
     const debtAlerts = [];
     players.forEach(p => {
-      if (p.paymentType !== 'monthly') return;
-      const pPay = monthPayments.filter(x => x.playerId === p.id);
-      const paid = pPay.reduce((s,x) => s + x.amount, 0);
-      const owed = (p.monthlyFee||0) - paid;
-      if (owed > 0) debtAlerts.push({ player: p, owed });
+      if (p.paymentType === 'monthly') {
+        const pPay = monthPayments.filter(x => x.playerId === p.id);
+        const paid = pPay.reduce((s,x) => s + x.amount, 0);
+        const owed = (p.monthlyFee||0) - paid;
+        if (owed > 0) debtAlerts.push({ player: p, owed, type: 'monthly' });
+      } else if (p.paymentType === 'annual') {
+        const owed = App.getAnnualDebt(p, payments);
+        if (owed > 0) debtAlerts.push({ player: p, owed, type: 'annual' });
+      }
     });
 
     let html = `
@@ -1360,8 +1387,9 @@ const Dashboard = {
           <a href="${waLink(a.player.parentPhone, `مرحباً، نود إعلامكم بأن ${a.player.name} غائب منذ ${a.count} حصص متتالية عن تدريبات أكاديمية جرين هيل. نرجو التواصل معنا. شكراً 🟢`)}" target="_blank" class="btn btn-whatsapp btn-sm"><i class="fab fa-whatsapp"></i> تواصل</a></div>`;
       });
       debtAlerts.forEach(a => {
-        html += `<div class="alert-item warning"><i class="fas fa-money-bill-wave"></i><div class="alert-text">${a.player.name} - مديونية ${DB.fmtMoney(a.owed)} جنيه</div>
-          <a href="${waLink(a.player.parentPhone, `مرحباً ${a.player.name}، تذكير بسداد رسوم ${a.player.name} بمبلغ ${a.owed} جنيه لأكاديمية جرين هيل. شكراً لتعاونكم 🟢`)}" target="_blank" class="btn btn-whatsapp btn-sm"><i class="fab fa-whatsapp"></i> تذكير</a></div>`;
+        const debtText = a.type === 'monthly' ? 'الاشتراك الشهري' : 'القسط السنوي';
+        html += `<div class="alert-item warning"><i class="fas fa-money-bill-wave"></i><div class="alert-text">${a.player.name} - متأخرات ${debtText} ${DB.fmtMoney(Math.round(a.owed))} جنيه</div>
+          <a href="${waLink(a.player.parentPhone, `مرحباً ولي أمر اللاعب ${a.player.name}، تذكير بسداد متأخرات ${debtText} بمبلغ ${Math.round(a.owed)} جنيه لأكاديمية جرين هيل. شكراً لتعاونكم 🟢`)}" target="_blank" class="btn btn-whatsapp btn-sm"><i class="fab fa-whatsapp"></i> تذكير</a></div>`;
       });
       html += `</div></div>`;
     }
@@ -1493,7 +1521,7 @@ const Players = {
         <td>${p.group}</td>
         <td>${p.age}</td>
         <td>${coach ? coach.name : '-'}</td>
-        <td>${p.paymentType==='monthly'?'شهري ('+DB.fmtMoney(p.monthlyFee)+' ج)':'دوري ('+DB.fmtMoney(p.sessionFee)+' ج/حصة)'}</td>
+        <td>${p.paymentType==='monthly'?'شهري ('+DB.fmtMoney(p.monthlyFee)+' ج)':'سنوي ('+DB.fmtMoney(p.annualFee)+' ج/سنة)'}</td>
         <td><span class="badge-status ${p.status==='active'?'badge-active':'badge-inactive'}">${p.status==='active'?'نشط':'غير نشط'}</span></td>
         <td>
           <button class="btn btn-sm btn-outline" onclick="Players.viewPlayer('${p.id}')" title="عرض"><i class="fas fa-eye"></i></button>
@@ -1515,7 +1543,7 @@ const Players = {
 
   showForm(id) {
     const coaches = DB.get('coaches') || [];
-    let p = { code:'', name:'', phone:'', parentPhone:'', age:'', group:'U10', coachId: coaches[0]?.id||'', status:'active', paymentType:'monthly', monthlyFee:500, sessionFee:50, notes:'' };
+    let p = { code:'', name:'', phone:'', parentPhone:'', age:'', group:'U10', coachId: coaches[0]?.id||'', status:'active', paymentType:'monthly', monthlyFee:500, annualFee:6000, notes:'' };
     let title = 'إضافة لاعب جديد';
     if (id) {
       const players = DB.get('players') || [];
@@ -1540,12 +1568,12 @@ const Players = {
         </div>
         <div class="form-row">
           <div class="form-group"><label>الحالة</label><select id="pStatus"><option value="active" ${p.status==='active'?'selected':''}>نشط</option><option value="inactive" ${p.status==='inactive'?'selected':''}>غير نشط</option></select></div>
-          <div class="form-group"><label>نوع الدفع</label><select id="pPayType" onchange="document.getElementById('monthlyFeeWrap').style.display=this.value==='monthly'?'block':'none';document.getElementById('sessionFeeWrap').style.display=this.value==='periodic'?'block':'none';">
-            <option value="monthly" ${p.paymentType==='monthly'?'selected':''}>شهري</option><option value="periodic" ${p.paymentType==='periodic'?'selected':''}>دوري (بالحصة)</option></select></div>
+          <div class="form-group"><label>نوع الدفع</label><select id="pPayType" onchange="document.getElementById('monthlyFeeWrap').style.display=this.value==='monthly'?'block':'none';document.getElementById('annualFeeWrap').style.display=this.value==='annual'?'block':'none';">
+            <option value="monthly" ${p.paymentType==='monthly'?'selected':''}>شهري</option><option value="annual" ${p.paymentType==='annual'?'selected':''}>سنوي (أقساط 3 مرات)</option></select></div>
         </div>
         <div class="form-row">
           <div class="form-group" id="monthlyFeeWrap" style="display:${p.paymentType==='monthly'?'block':'none'}"><label>الاشتراك الشهري (جنيه)</label><input id="pMonthlyFee" type="number" value="${p.monthlyFee||500}"></div>
-          <div class="form-group" id="sessionFeeWrap" style="display:${p.paymentType==='periodic'?'block':'none'}"><label>سعر الحصة (جنيه)</label><input id="pSessionFee" type="number" value="${p.sessionFee||50}"></div>
+          <div class="form-group" id="annualFeeWrap" style="display:${p.paymentType==='annual'?'block':'none'}"><label>الاشتراك السنوي (جنيه)</label><input id="pAnnualFee" type="number" value="${p.annualFee||6000}"></div>
         </div>
         <div class="form-group"><label>ملاحظات</label><textarea id="pNotes" rows="2">${p.notes||''}</textarea></div>
       </div>
@@ -1573,7 +1601,7 @@ const Players = {
       status: document.getElementById('pStatus').value,
       paymentType: document.getElementById('pPayType').value,
       monthlyFee: parseInt(document.getElementById('pMonthlyFee').value) || 0,
-      sessionFee: parseInt(document.getElementById('pSessionFee').value) || 0,
+      annualFee: parseInt(document.getElementById('pAnnualFee').value) || 0,
       notes: document.getElementById('pNotes').value.trim()
     };
     if (id) {
@@ -1635,10 +1663,10 @@ const Players = {
           <div class="info-item"><label>هاتف ولي الأمر</label><span>${p.parentPhone}</span></div>
           <div class="info-item"><label>المدرب</label><span>${coach?coach.name:'-'}</span></div>
           <div class="info-item"><label>تاريخ التسجيل</label><span>${p.regDate}</span></div>
-          <div class="info-item"><label>نوع الدفع</label><span>${p.paymentType==='monthly'?'شهري':'دوري (بالحصة)'}</span></div>
-          <div class="info-item"><label>الرسوم</label><span>${p.paymentType==='monthly'?DB.fmtMoney(p.monthlyFee)+' ج/شهر':DB.fmtMoney(p.sessionFee)+' ج/حصة'}</span></div>
-          <div class="info-item"><label>المدفوع هذا الشهر</label><span class="paid-amount">${DB.fmtMoney(monthPaid)} ج</span></div>
-          ${owed > 0 ? `<div class="info-item"><label>المتبقي</label><span class="debt-amount">${DB.fmtMoney(owed)} ج</span></div>` : ''}
+          <div class="info-item"><label>نوع الدفع</label><span>${p.paymentType==='monthly'?'شهري':'سنوي (أقساط)'}</span></div>
+          <div class="info-item"><label>الرسوم</label><span>${p.paymentType==='monthly'?DB.fmtMoney(p.monthlyFee)+' ج/شهر':DB.fmtMoney(p.annualFee)+' ج/سنة'}</span></div>
+          <div class="info-item"><label>المدفوع ${p.paymentType==='monthly'?'هذا الشهر':'حتى الآن'}</label><span class="paid-amount">${DB.fmtMoney(p.paymentType==='monthly'?monthPaid:payments.reduce((s,x)=>s+x.amount,0))} ج</span></div>
+          ${p.paymentType === 'monthly' ? (owed > 0 ? `<div class="info-item"><label>المتبقي للملف</label><span class="debt-amount">${DB.fmtMoney(owed)} ج</span></div>` : '') : `<div class="info-item"><label>المستحق للآن</label><span class="debt-amount">${DB.fmtMoney(Math.round(App.getAnnualDebt(p, payments)))} ج</span></div>`}
         </div>
         ${p.notes ? `<div style="margin-top:16px;padding:12px;background:#F9FAFB;border-radius:8px;font-size:0.88rem"><strong>ملاحظات:</strong> ${p.notes}</div>` : ''}
       </div>
@@ -1812,28 +1840,37 @@ const Payments = {
       // Debts view
       const debtList = [];
       players.forEach(p => {
-        if (p.paymentType !== 'monthly') return;
-        const pPay = allPayments.filter(x => x.playerId === p.id && DB.getMonth(x.date) === cm);
-        const paid = pPay.reduce((s,x) => s + x.amount, 0);
-        const owed = (p.monthlyFee || 0) - paid;
-        if (owed > 0) debtList.push({ player: p, paid, owed, fee: p.monthlyFee });
+        if (p.paymentType === 'monthly') {
+          const pPay = allPayments.filter(x => x.playerId === p.id && DB.getMonth(x.date) === cm);
+          const paid = pPay.reduce((s,x) => s + x.amount, 0);
+          const owed = (p.monthlyFee || 0) - paid;
+          if (owed > 0) debtList.push({ player: p, type: 'monthly', paid, owed, expected: p.monthlyFee });
+        } else if (p.paymentType === 'annual') {
+          const owed = App.getAnnualDebt(p, allPayments);
+          if (owed > 0) {
+            const paid = allPayments.filter(x => x.playerId === p.id).reduce((s,x) => s + x.amount, 0);
+            debtList.push({ player: p, type: 'annual', paid, owed, expected: owed + paid });
+          }
+        }
       });
       debtList.sort((a,b) => b.owed - a.owed);
 
-      html += `<div class="table-container"><div class="table-header"><h4><i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i> قائمة المديونية - الشهر الحالي</h4></div>
+      html += `<div class="table-container"><div class="table-header"><h4><i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i> قائمة المديونية</h4></div>
         <div class="table-responsive"><table>
-        <thead><tr><th>اللاعب</th><th>المجموعة</th><th>الاشتراك</th><th>المدفوع</th><th>المتبقي</th><th>تذكير</th></tr></thead><tbody>`;
+        <thead><tr><th>اللاعب</th><th>المجموعة</th><th>النوع</th><th>المطلوب (حتى الآن)</th><th>المدفوع</th><th>المتأخر</th><th>تذكير</th></tr></thead><tbody>`;
       if (debtList.length === 0) {
-        html += `<tr><td colspan="6"><div class="empty-state"><i class="fas fa-check-circle" style="color:var(--success)"></i><p>لا توجد مديونية! 🎉</p></div></td></tr>`;
+        html += `<tr><td colspan="7"><div class="empty-state"><i class="fas fa-check-circle" style="color:var(--success)"></i><p>لا توجد مديونية! 🎉</p></div></td></tr>`;
       }
       debtList.forEach(d => {
+        const typeStr = d.type === 'monthly' ? 'شهري' : 'قسط سنوي';
         html += `<tr>
           <td style="font-weight:600">${d.player.name}</td>
           <td>${d.player.group}</td>
-          <td>${DB.fmtMoney(d.fee)} ج</td>
-          <td class="paid-amount">${DB.fmtMoney(d.paid)} ج</td>
-          <td class="debt-amount">${DB.fmtMoney(d.owed)} ج</td>
-          <td><a href="${waLink(d.player.parentPhone, `مرحباً، تذكير بسداد رسوم ${d.player.name} بمبلغ ${d.owed} جنيه لأكاديمية جرين هيل. شكراً لتعاونكم 🟢`)}" target="_blank" class="btn btn-whatsapp btn-sm"><i class="fab fa-whatsapp"></i> تذكير</a></td>
+          <td><span class="badge-status badge-warning">${typeStr}</span></td>
+          <td>${DB.fmtMoney(Math.round(d.expected))} ج</td>
+          <td class="paid-amount">${DB.fmtMoney(Math.round(d.paid))} ج</td>
+          <td class="debt-amount">${DB.fmtMoney(Math.round(d.owed))} ج</td>
+          <td><a href="${waLink(d.player.parentPhone, `مرحباً، تذكير بسداد متأخرات ${typeStr} للاعب ${d.player.name} بمبلغ ${Math.round(d.owed)} جنيه لأكاديمية جرين هيل. شكراً لتعاونكم 🟢`)}" target="_blank" class="btn btn-whatsapp btn-sm"><i class="fab fa-whatsapp"></i> تذكير</a></td>
         </tr>`;
       });
       html += `</tbody></table></div></div>`;
@@ -2380,7 +2417,15 @@ const Reports = {
         <div class="stat-card success"><div class="stat-icon green"><i class="fas fa-percentage"></i></div><div class="stat-value">${weekPresentPct}%</div><div class="stat-label">نسبة الحضور الأسبوعي</div></div>
         <div class="stat-card accent"><div class="stat-icon gold"><i class="fas fa-money-bill-wave"></i></div><div class="stat-value">${DB.fmtMoney(weekRevenue)}</div><div class="stat-label">إيرادات الأسبوع</div></div>
         <div class="stat-card info"><div class="stat-icon blue"><i class="fas fa-user-plus"></i></div><div class="stat-value">${weekNewPlayers}</div><div class="stat-label">لاعبون جدد</div></div>
-        <div class="stat-card danger"><div class="stat-icon red"><i class="fas fa-exclamation-circle"></i></div><div class="stat-value">${DB.fmtMoney(activePlayers.filter(p=>p.paymentType==='monthly').reduce((s,p)=>{const paid=allPayments.filter(x=>x.playerId===p.id&&DB.getMonth(x.date)===cm).reduce((ss,x)=>ss+x.amount,0);return s+Math.max(0,(p.monthlyFee||0)-paid);},0))}</div><div class="stat-label">المديونية المعلقة</div></div>
+        <div class="stat-card danger"><div class="stat-icon red"><i class="fas fa-exclamation-circle"></i></div><div class="stat-value">${DB.fmtMoney(Math.round(activePlayers.reduce((s,p)=>{
+          if(p.paymentType==='monthly'){
+            const paid=allPayments.filter(x=>x.playerId===p.id&&DB.getMonth(x.date)===cm).reduce((ss,x)=>ss+x.amount,0);
+            return s+Math.max(0,(p.monthlyFee||0)-paid);
+          } else if(p.paymentType==='annual') {
+            return s+App.getAnnualDebt(p, allPayments);
+          }
+          return s;
+        },0)))}</div><div class="stat-label">إجمالي المديونية المتأخرة</div></div>
       </div>`;
 
       // Weekly per-group attendance
@@ -2404,7 +2449,7 @@ const Reports = {
       // Monthly
       const monthPayments = allPayments.filter(p => DB.getMonth(p.date) === cm);
       const totalRevenue = monthPayments.reduce((s,p) => s + p.amount, 0);
-      const expectedRevenue = activePlayers.filter(p => p.paymentType === 'monthly').reduce((s,p) => s + (p.monthlyFee||0), 0);
+      const expectedRevenue = Math.round(activePlayers.reduce((s,p) => s + (p.paymentType==='monthly' ? (p.monthlyFee||0) : (p.paymentType==='annual' ? ((p.annualFee||0)/12) : 0)), 0));
       const monthExpenses = allExpenses.filter(e => DB.getMonth(e.date) === cm).reduce((s,e) => s + e.amount, 0);
       const monthSalaryPaid = salaryPayments.filter(s => DB.getMonth(s.date) === cm).reduce((s,p) => s + p.amount, 0);
       const totalCoachSalaries = coaches.reduce((s,c) => s + (c.salary||0), 0);
@@ -2499,7 +2544,7 @@ const Reports = {
     } else {
       const monthPayments = allPayments.filter(p => DB.getMonth(p.date) === cm);
       const totalRevenue = monthPayments.reduce((s,p)=>s+p.amount,0);
-      const expectedRevenue = activePlayers.filter(p=>p.paymentType==='monthly').reduce((s,p)=>s+(p.monthlyFee||0),0);
+      const expectedRevenue = Math.round(activePlayers.reduce((s,p) => s + (p.paymentType==='monthly' ? (p.monthlyFee||0) : (p.paymentType==='annual' ? ((p.annualFee||0)/12) : 0)), 0));
       const monthExpenses = allExpenses.filter(e=>DB.getMonth(e.date)===cm).reduce((s,e)=>s+e.amount,0);
       const monthSalaryPaid = salaryPayments.filter(s=>DB.getMonth(s.date)===cm).reduce((s,p)=>s+p.amount,0);
       return {
