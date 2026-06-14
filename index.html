@@ -1,0 +1,2583 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>أكاديمية جرين هيل لكرة القدم - فرع الشروق</title>
+<meta name="description" content="نظام إدارة أكاديمية جرين هيل لكرة القدم - فرع الشروق. إدارة اللاعبين والمدربين والحضور والمدفوعات والتقارير.">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --primary: #1B5E20;
+  --primary-light: #2E7D32;
+  --primary-dark: #0D3B0F;
+  --primary-gradient: linear-gradient(135deg, #1B5E20 0%, #2E7D32 50%, #1B5E20 100%);
+  --accent: #FFD700;
+  --accent-light: #FFE44D;
+  --accent-dark: #C9A800;
+  --bg: #F5F7FA;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #0D3B0F;
+  --text: #1A1A2E;
+  --text-light: #6B7280;
+  --text-white: #FFFFFF;
+  --border: #E5E7EB;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-lg: 0 4px 20px rgba(0,0,0,0.1), 0 8px 32px rgba(0,0,0,0.06);
+  --shadow-xl: 0 8px 40px rgba(0,0,0,0.12);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --sidebar-width: 260px;
+  --sidebar-collapsed: 70px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Cairo', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  direction: rtl;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+/* LOGIN PAGE */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0D3B0F 0%, #1B5E20 40%, #2E7D32 70%, #1B5E20 100%);
+  position: relative;
+  overflow: hidden;
+}
+.login-page::before {
+  content: '';
+  position: absolute;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(255,215,0,0.1) 0%, transparent 70%);
+  top: -200px; left: -200px;
+  animation: floatGlow 8s ease-in-out infinite;
+}
+.login-page::after {
+  content: '';
+  position: absolute;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(255,215,0,0.08) 0%, transparent 70%);
+  bottom: -150px; right: -150px;
+  animation: floatGlow 10s ease-in-out infinite reverse;
+}
+@keyframes floatGlow {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, 30px) scale(1.1); }
+}
+.login-card {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 48px 40px;
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  animation: slideUp 0.6s ease-out;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.login-logo {
+  width: 90px; height: 90px;
+  background: var(--primary-gradient);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  box-shadow: 0 8px 24px rgba(27,94,32,0.3);
+}
+.login-logo i { font-size: 40px; color: var(--accent); }
+.login-card h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+.login-card .subtitle {
+  color: var(--text-light);
+  font-size: 0.9rem;
+  margin-bottom: 32px;
+}
+.form-group {
+  margin-bottom: 20px;
+  text-align: right;
+}
+.form-group label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.95rem;
+  transition: var(--transition);
+  background: #FAFAFA;
+  direction: rtl;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(27,94,32,0.1);
+}
+.form-group .input-icon {
+  position: relative;
+}
+.form-group .input-icon i {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+.form-group .input-icon input {
+  padding-right: 42px;
+}
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'Cairo', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  text-decoration: none;
+}
+.btn-primary {
+  background: var(--primary-gradient);
+  color: white;
+  box-shadow: 0 4px 16px rgba(27,94,32,0.3);
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(27,94,32,0.4);
+}
+.btn-accent {
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  color: var(--primary-dark);
+  box-shadow: 0 4px 16px rgba(255,215,0,0.3);
+}
+.btn-accent:hover { transform: translateY(-2px); }
+.btn-danger {
+  background: linear-gradient(135deg, var(--danger), #F87171);
+  color: white;
+}
+.btn-success {
+  background: linear-gradient(135deg, var(--success), #34D399);
+  color: white;
+}
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--primary);
+  color: var(--primary);
+}
+.btn-outline:hover {
+  background: var(--primary);
+  color: white;
+}
+.btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+.btn-block { width: 100%; }
+.btn-whatsapp {
+  background: linear-gradient(135deg, #25D366, #128C7E);
+  color: white;
+  box-shadow: 0 4px 12px rgba(37,211,102,0.3);
+}
+.btn-whatsapp:hover { transform: translateY(-1px); }
+.btn-icon {
+  width: 36px; height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+.login-error {
+  background: #FEF2F2;
+  color: var(--danger);
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+  display: none;
+}
+
+/* MAIN APP */
+.app-container {
+  display: none;
+  min-height: 100vh;
+}
+.app-container.active { display: flex; }
+
+/* SIDEBAR */
+.sidebar {
+  width: var(--sidebar-width);
+  background: linear-gradient(180deg, #0A2E0D 0%, #0D3B0F 30%, #143E16 100%);
+  min-height: 100vh;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 100;
+  transition: var(--transition);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+}
+.sidebar-header {
+  padding: 20px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.sidebar-logo {
+  width: 56px; height: 56px;
+  background: rgba(255,215,0,0.15);
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
+}
+.sidebar-logo i { font-size: 24px; color: var(--accent); }
+.sidebar-header h2 {
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.sidebar-header span {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.sidebar-nav {
+  flex: 1;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  color: rgba(255,255,255,0.65);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-right: 3px solid transparent;
+  position: relative;
+}
+.nav-item:hover {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.9);
+}
+.nav-item.active {
+  background: rgba(255,215,0,0.08);
+  color: var(--accent);
+  border-right-color: var(--accent);
+}
+.nav-item i { font-size: 1rem; width: 22px; text-align: center; }
+.nav-item .badge {
+  position: absolute;
+  left: 16px;
+  background: var(--danger);
+  color: white;
+  font-size: 0.65rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.nav-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+  margin: 8px 16px;
+}
+.sidebar-footer {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+}
+.user-avatar {
+  width: 36px; height: 36px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: var(--primary-dark);
+  font-size: 0.85rem;
+}
+.user-info .name { font-size: 0.85rem; font-weight: 600; }
+.user-info .role { font-size: 0.7rem; color: var(--accent); }
+.logout-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px;
+  background: rgba(239,68,68,0.15);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: var(--radius-sm);
+  color: #FCA5A5;
+  cursor: pointer;
+  font-family: 'Cairo', sans-serif;
+  font-weight: 600;
+  font-size: 0.8rem;
+  transition: var(--transition);
+}
+.logout-btn:hover { background: rgba(239,68,68,0.25); }
+
+/* MAIN CONTENT */
+.main-content {
+  margin-right: var(--sidebar-width);
+  flex: 1;
+  min-height: 100vh;
+  transition: var(--transition);
+}
+.top-bar {
+  background: white;
+  padding: 16px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.top-bar-right { display: flex; align-items: center; gap: 12px; }
+.top-bar h3 { font-size: 1.2rem; font-weight: 700; color: var(--primary-dark); }
+.menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  color: var(--primary);
+  padding: 6px;
+}
+.page-content { padding: 24px 28px; }
+.page { display: none; }
+.page.active { display: block; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* CARDS */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: white;
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: var(--shadow);
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 4px; height: 100%;
+  background: var(--primary);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.stat-card.accent::before { background: var(--accent); }
+.stat-card.danger::before { background: var(--danger); }
+.stat-card.success::before { background: var(--success); }
+.stat-card.info::before { background: var(--info); }
+.stat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+.stat-card .stat-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  font-size: 1.2rem;
+}
+.stat-card .stat-icon.green { background: rgba(27,94,32,0.1); color: var(--primary); }
+.stat-card .stat-icon.gold { background: rgba(255,215,0,0.15); color: var(--accent-dark); }
+.stat-card .stat-icon.red { background: rgba(239,68,68,0.1); color: var(--danger); }
+.stat-card .stat-icon.blue { background: rgba(59,130,246,0.1); color: var(--info); }
+.stat-card .stat-value { font-size: 1.8rem; font-weight: 800; color: var(--text); }
+.stat-card .stat-label { font-size: 0.8rem; color: var(--text-light); font-weight: 500; margin-top: 2px; }
+
+/* TABLES */
+.table-container {
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.table-header {
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.table-header h4 { font-size: 1rem; font-weight: 700; }
+.table-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.search-box {
+  position: relative;
+}
+.search-box input {
+  padding: 8px 14px 8px 36px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.85rem;
+  width: 220px;
+  transition: var(--transition);
+}
+.search-box input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.search-box i {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light);
+  font-size: 0.8rem;
+}
+.table-responsive { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th {
+  background: #F9FAFB;
+  padding: 12px 16px;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+td {
+  padding: 12px 16px;
+  font-size: 0.88rem;
+  border-top: 1px solid var(--border);
+  white-space: nowrap;
+}
+tr:hover td { background: #F9FAFB; }
+.badge-status {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.badge-active { background: rgba(16,185,129,0.1); color: #059669; }
+.badge-inactive { background: rgba(239,68,68,0.1); color: #DC2626; }
+.badge-warning { background: rgba(245,158,11,0.1); color: #D97706; }
+.badge-present { background: rgba(16,185,129,0.1); color: #059669; }
+.badge-absent { background: rgba(239,68,68,0.1); color: #DC2626; }
+.badge-late { background: rgba(245,158,11,0.1); color: #D97706; }
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: white;
+  border-radius: var(--radius-lg);
+  width: 560px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-xl);
+  animation: modalIn 0.3s ease;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modal-header h3 { font-size: 1.1rem; font-weight: 700; }
+.modal-close {
+  background: none; border: none;
+  font-size: 1.2rem; cursor: pointer;
+  color: var(--text-light);
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: var(--transition);
+}
+.modal-close:hover { background: #F3F4F6; color: var(--text); }
+.modal-body { padding: 24px; }
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
+}
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+
+/* TOAST */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  padding: 14px 20px;
+  border-radius: var(--radius-sm);
+  color: white;
+  font-weight: 600;
+  font-size: 0.88rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 300px;
+  box-shadow: var(--shadow-lg);
+  animation: toastIn 0.4s ease;
+  cursor: pointer;
+}
+.toast.hide { animation: toastOut 0.3s ease forwards; }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes toastOut {
+  to { opacity: 0; transform: translateX(-30px); }
+}
+.toast.success { background: linear-gradient(135deg, #059669, #10B981); }
+.toast.error { background: linear-gradient(135deg, #DC2626, #EF4444); }
+.toast.warning { background: linear-gradient(135deg, #D97706, #F59E0B); }
+.toast.info { background: linear-gradient(135deg, #2563EB, #3B82F6); }
+
+/* CHART */
+.chart-container {
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px;
+  margin-bottom: 24px;
+}
+.chart-container h4 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
+.chart-canvas-wrap { position: relative; width: 100%; height: 280px; }
+.chart-canvas-wrap canvas { width: 100% !important; height: 100% !important; }
+
+/* EMPTY STATE */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-light);
+}
+.empty-state i { font-size: 3rem; margin-bottom: 16px; opacity: 0.4; }
+.empty-state p { font-size: 1rem; font-weight: 500; }
+.empty-state .sub { font-size: 0.85rem; margin-top: 6px; }
+
+/* FILTER BAR */
+.filter-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  align-items: center;
+}
+.filter-bar select, .filter-bar input {
+  padding: 8px 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.85rem;
+  background: white;
+  transition: var(--transition);
+}
+.filter-bar select:focus, .filter-bar input:focus {
+  border-color: var(--primary); outline: none;
+}
+
+/* ATTENDANCE GRID */
+.attendance-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.attendance-row {
+  background: white;
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.attendance-row .player-name { font-weight: 600; font-size: 0.95rem; min-width: 150px; }
+.attendance-btns { display: flex; gap: 6px; }
+.att-btn {
+  padding: 6px 16px;
+  border: 2px solid var(--border);
+  border-radius: 20px;
+  background: white;
+  font-family: 'Cairo', sans-serif;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.att-btn:hover { transform: scale(1.05); }
+.att-btn.present.selected { background: var(--success); color: white; border-color: var(--success); }
+.att-btn.absent.selected { background: var(--danger); color: white; border-color: var(--danger); }
+.att-btn.late.selected { background: var(--warning); color: white; border-color: var(--warning); }
+
+/* PROFILE VIEW */
+.profile-section {
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+.profile-header-bar {
+  background: var(--primary-gradient);
+  padding: 24px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.profile-avatar {
+  width: 64px; height: 64px;
+  background: rgba(255,215,0,0.2);
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  color: var(--accent);
+}
+.profile-header-bar h3 { font-size: 1.3rem; font-weight: 700; }
+.profile-header-bar .meta { opacity: 0.8; font-size: 0.85rem; }
+.profile-body { padding: 22px; }
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+.info-item label { font-size: 0.75rem; color: var(--text-light); font-weight: 600; display: block; }
+.info-item span { font-size: 0.95rem; font-weight: 600; }
+.section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 24px 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title i { color: var(--primary); }
+
+/* TABS */
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #F3F4F6; border-radius: var(--radius-sm); padding: 4px; }
+.tab-btn {
+  padding: 8px 20px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  font-family: 'Cairo', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: var(--transition);
+  color: var(--text-light);
+}
+.tab-btn.active { background: white; color: var(--primary); box-shadow: var(--shadow); }
+
+/* ALERTS LIST */
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #FEF2F2;
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  border-right: 3px solid var(--danger);
+}
+.alert-item.warning { background: #FFFBEB; border-right-color: var(--warning); }
+.alert-item i { color: var(--danger); font-size: 1rem; }
+.alert-item.warning i { color: var(--warning); }
+.alert-item .alert-text { flex: 1; font-size: 0.85rem; font-weight: 500; }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(100%);
+    width: 280px;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .main-content { margin-right: 0; }
+  .menu-toggle { display: block; }
+  .stats-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .form-row { grid-template-columns: 1fr; }
+  .form-row.three { grid-template-columns: 1fr; }
+  .page-content { padding: 16px; }
+  .modal { width: 95vw; }
+  .filter-bar { flex-direction: column; align-items: stretch; }
+  .table-header { flex-direction: column; align-items: stretch; }
+}
+.sidebar-overlay {
+  position: fixed; top:0; left:0; right:0; bottom:0;
+  background: rgba(0,0,0,0.4);
+  z-index: 99;
+  display: none;
+}
+.sidebar-overlay.active { display: block; }
+
+/* Loading spinner */
+.spinner { display:inline-block; width:18px; height:18px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.6s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Profile back btn */
+.back-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--primary); font-weight: 600; cursor: pointer;
+  font-size: 0.9rem; margin-bottom: 16px; background: none; border: none;
+  font-family: 'Cairo', sans-serif;
+}
+.back-btn:hover { text-decoration: underline; }
+
+/* Debt highlight */
+.debt-amount { color: var(--danger); font-weight: 700; }
+.paid-amount { color: var(--success); font-weight: 700; }
+
+.whatsapp-link { color: #25D366; text-decoration: none; font-weight: 600; }
+.whatsapp-link:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div class="login-page" id="loginPage">
+  <div class="login-card">
+    <div class="login-logo"><i class="fas fa-futbol"></i></div>
+    <h1>أكاديمية جرين هيل</h1>
+    <p class="subtitle">نظام الإدارة المتكامل للفروع</p>
+    <div class="login-error" id="loginError"><i class="fas fa-exclamation-circle"></i> <span id="loginErrorText"></span></div>
+    <form id="loginForm" onsubmit="return false;">
+      <div class="form-group">
+        <label>اسم المستخدم</label>
+        <div class="input-icon">
+          <i class="fas fa-user"></i>
+          <input type="text" id="loginUsername" placeholder="أدخل اسم المستخدم" autocomplete="username" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>كلمة المرور</label>
+        <div class="input-icon">
+          <i class="fas fa-lock"></i>
+          <input type="password" id="loginPassword" placeholder="أدخل كلمة المرور" autocomplete="current-password" required>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="loginBtn" onclick="App.login()">
+        <i class="fas fa-sign-in-alt"></i> تسجيل الدخول
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div class="app-container" id="appContainer">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="App.toggleSidebar()"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo"><i class="fas fa-futbol"></i></div>
+      <h2>جرين هيل</h2>
+      <span id="sidebarBranchName">نظام الفروع</span>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="userAvatar"></div>
+        <div>
+          <div class="name" id="userName"></div>
+          <div class="role" id="userRole"></div>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="App.logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content" id="mainContent">
+    <div class="top-bar">
+      <div class="top-bar-right">
+        <button class="menu-toggle" onclick="App.toggleSidebar()"><i class="fas fa-bars"></i></button>
+        <h3 id="pageTitle">لوحة التحكم</h3>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <select id="branchSelector" style="padding:6px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-family:'Cairo';background:#F9FAFB;cursor:pointer" onchange="App.changeBranch(this.value)">
+          <option value="b1">فرع الشروق</option>
+          <option value="b2">فرع مدينتي</option>
+          <option value="b3">فرع التجمع</option>
+          <option value="b4">فرع الرحاب</option>
+        </select>
+        <span style="font-size:0.8rem;color:var(--text-light)" id="todayDate"></span>
+      </div>
+    </div>
+    <div class="page-content">
+
+      <!-- OWNER/ADMIN DASHBOARD -->
+      <div class="page" id="page-dashboard"></div>
+
+      <!-- PLAYERS -->
+      <div class="page" id="page-players"></div>
+
+      <!-- ATTENDANCE -->
+      <div class="page" id="page-attendance"></div>
+
+      <!-- PAYMENTS -->
+      <div class="page" id="page-payments"></div>
+
+      <!-- INVOICES -->
+      <div class="page" id="page-invoices"></div>
+
+      <!-- COACHES -->
+      <div class="page" id="page-coaches"></div>
+
+      <!-- REPORTS -->
+      <div class="page" id="page-reports"></div>
+
+      <!-- EXPENSES -->
+      <div class="page" id="page-expenses"></div>
+
+    </div>
+  </main>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- GENERIC MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script>
+// ========== DATA LAYER ==========
+const DB = {
+  get(key) { try { return JSON.parse(localStorage.getItem('gha_' + key)) || null; } catch { return null; } },
+  set(key, val) { localStorage.setItem('gha_' + key, JSON.stringify(val)); },
+  genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 6); },
+  today() {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  },
+  todayISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  },
+  parseDate(s) {
+    if (!s) return new Date();
+    if (s.includes('/')) { const p = s.split('/'); return new Date(p[2], p[1]-1, p[0]); }
+    return new Date(s);
+  },
+  fmtDate(d) {
+    if (typeof d === 'string') d = DB.parseDate(d);
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  },
+  fmtMoney(n) { return Number(n||0).toLocaleString('ar-EG'); },
+  getMonth(dateStr) {
+    const d = DB.parseDate(dateStr);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  },
+  currentMonth() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+};
+
+// ========== SEED DATA ==========
+function seedData() {
+  if (DB.get('seeded')) return;
+
+  DB.set('users', [
+    { id:'u1', username:'owner', password:'owner123', role:'owner', name:'أحمد المالك' },
+    { id:'u2', username:'admin', password:'admin123', role:'admin', name:'محمد الإداري' },
+    { id:'u3', username:'coach1', password:'coach123', role:'coach', name:'خالد المدرب', coachId:'c1' }
+  ]);
+
+  DB.set('coaches', [
+    { id:'c1', name:'خالد المدرب', phone:'01012345678', specialization:'تدريب ناشئين', groups:['U10','U12'], salary:5000 },
+    { id:'c2', name:'عمر السيد', phone:'01098765432', specialization:'تدريب شباب', groups:['U14','U16'], salary:6000 }
+  ]);
+
+  const now = new Date();
+  const cm = DB.currentMonth();
+  const regDate = '01/09/2025';
+
+  DB.set('players', [
+    { id:'p1', name:'يوسف أحمد', phone:'01111111111', parentPhone:'01111111112', age:9, group:'U10', coachId:'c1', regDate, status:'active', paymentType:'monthly', monthlyFee:500, sessionFee:0, notes:'' },
+    { id:'p2', name:'عمر محمد', phone:'01222222221', parentPhone:'01222222222', age:11, group:'U12', coachId:'c1', regDate, status:'active', paymentType:'monthly', monthlyFee:550, sessionFee:0, notes:'' },
+    { id:'p3', name:'كريم حسن', phone:'01333333331', parentPhone:'01333333332', age:13, group:'U14', coachId:'c2', regDate, status:'active', paymentType:'monthly', monthlyFee:600, sessionFee:0, notes:'' },
+    { id:'p4', name:'ياسين علي', phone:'01444444441', parentPhone:'01444444442', age:15, group:'U16', coachId:'c2', regDate, status:'active', paymentType:'periodic', monthlyFee:0, sessionFee:75, notes:'يدفع بالحصة' },
+    { id:'p5', name:'حمزة سمير', phone:'01555555551', parentPhone:'01555555552', age:10, group:'U10', coachId:'c1', regDate, status:'active', paymentType:'monthly', monthlyFee:500, sessionFee:0, notes:'' },
+    { id:'p6', name:'مصطفى خالد', phone:'01666666661', parentPhone:'01666666662', age:12, group:'U12', coachId:'c1', regDate, status:'active', paymentType:'monthly', monthlyFee:550, sessionFee:0, notes:'' },
+    { id:'p7', name:'أدهم طارق', phone:'01777777771', parentPhone:'01777777772', age:14, group:'U14', coachId:'c2', regDate, status:'inactive', paymentType:'monthly', monthlyFee:600, sessionFee:0, notes:'انتقل لأكاديمية أخرى' },
+    { id:'p8', name:'زياد فاروق', phone:'01888888881', parentPhone:'01888888882', age:16, group:'U16', coachId:'c2', regDate, status:'active', paymentType:'monthly', monthlyFee:650, sessionFee:0, notes:'' }
+  ]);
+
+  // Attendance - last few days
+  const attRecords = [];
+  const groups = ['U10','U12','U14','U16'];
+  const players = DB.get('players');
+  for (let dayOff = 1; dayOff <= 5; dayOff++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - dayOff);
+    const dateStr = DB.fmtDate(d);
+    players.forEach(p => {
+      if (p.status !== 'active') return;
+      const statuses = ['present','present','present','absent','late'];
+      attRecords.push({ id: DB.genId(), playerId: p.id, group: p.group, date: dateStr, status: statuses[Math.floor(Math.random()*statuses.length)] });
+    });
+  }
+  DB.set('attendance', attRecords);
+
+  // Payments - some for current month
+  DB.set('payments', [
+    { id:'pay1', playerId:'p1', date: '01/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), amount:500, method:'cash', notes:'دفع كامل' },
+    { id:'pay2', playerId:'p2', date: '03/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), amount:300, method:'cash', notes:'دفع جزئي' },
+    { id:'pay3', playerId:'p3', date: '02/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), amount:600, method:'transfer', notes:'تحويل بنكي' },
+    { id:'pay4', playerId:'p5', date: '05/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), amount:500, method:'cash', notes:'' },
+    { id:'pay5', playerId:'p8', date: '04/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), amount:400, method:'cash', notes:'دفع جزئي' }
+  ]);
+
+  DB.set('invoices', [
+    { id:'inv1', paymentId:'pay1', playerId:'p1', amount:500, date:'01/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), receiptNo:'GH-001' },
+    { id:'inv2', paymentId:'pay3', playerId:'p3', amount:600, date:'02/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), receiptNo:'GH-002' }
+  ]);
+
+  DB.set('advances', [
+    { id:'adv1', coachId:'c1', date:'15/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), amount:1000, notes:'سلفة شخصية' }
+  ]);
+
+  DB.set('salaryPayments', []);
+
+  DB.set('expenses', [
+    { id:'exp1', date:'01/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), category:'إيجار', amount:3000, notes:'إيجار الملعب الشهري' },
+    { id:'exp2', date:'10/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(), category:'معدات', amount:800, notes:'شراء كرات تدريب' }
+  ]);
+
+  DB.set('seeded', true);
+}
+
+// ========== APP CONTROLLER ==========
+const App = {
+  currentUser: null,
+  currentPage: 'dashboard',
+  currentBranch: 'b1',
+
+  changeBranch(branchId) {
+    App.currentBranch = branchId;
+    DB.set('currentBranch', branchId);
+    const branchName = document.querySelector(`#branchSelector option[value="${branchId}"]`).textContent;
+    document.getElementById('sidebarBranchName').textContent = branchName;
+    Toast.info('تم التبديل إلى ' + branchName);
+    App.renderPage(App.currentPage);
+  },
+
+  init() {
+    seedData();
+    document.getElementById('todayDate').textContent = DB.today();
+    const savedBranch = DB.get('currentBranch');
+    if (savedBranch && document.getElementById('branchSelector')) {
+      App.currentBranch = savedBranch;
+      document.getElementById('branchSelector').value = savedBranch;
+    }
+    const session = DB.get('session');
+    if (session) {
+      const users = DB.get('users') || [];
+      const u = users.find(x => x.id === session.userId);
+      if (u) { App.currentUser = u; App.showApp(); return; }
+    }
+    App.showLogin();
+  },
+
+  showLogin() {
+    document.getElementById('loginPage').style.display = 'flex';
+    document.getElementById('appContainer').classList.remove('active');
+  },
+
+  showApp() {
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('appContainer').classList.add('active');
+    App.buildSidebar();
+    App.updateUserInfo();
+    if(document.getElementById('branchSelector')) {
+       document.getElementById('sidebarBranchName').textContent = document.querySelector(`#branchSelector option[value="${App.currentBranch}"]`).textContent;
+    }
+    App.navigate('dashboard');
+  },
+
+  login() {
+    const u = document.getElementById('loginUsername').value.trim();
+    const p = document.getElementById('loginPassword').value.trim();
+    if (!u || !p) { App.showLoginError('يرجى إدخال اسم المستخدم وكلمة المرور'); return; }
+    const users = DB.get('users') || [];
+    const user = users.find(x => x.username === u && x.password === p);
+    if (!user) { App.showLoginError('اسم المستخدم أو كلمة المرور غير صحيحة'); return; }
+    App.currentUser = user;
+    DB.set('session', { userId: user.id });
+    App.showApp();
+    Toast.success('مرحباً ' + user.name);
+  },
+
+  logout() {
+    localStorage.removeItem('gha_session');
+    App.currentUser = null;
+    document.getElementById('loginUsername').value = '';
+    document.getElementById('loginPassword').value = '';
+    App.showLogin();
+  },
+
+  showLoginError(msg) {
+    const el = document.getElementById('loginError');
+    document.getElementById('loginErrorText').textContent = msg;
+    el.style.display = 'flex';
+    setTimeout(() => el.style.display = 'none', 4000);
+  },
+
+  buildSidebar() {
+    const role = App.currentUser.role;
+    const items = [
+      { id:'dashboard', icon:'fas fa-tachometer-alt', label:'لوحة التحكم', roles:['owner','admin','coach'] },
+      { id:'players', icon:'fas fa-users', label:'اللاعبون', roles:['owner','admin','coach'] },
+      { id:'attendance', icon:'fas fa-clipboard-check', label:'الحضور والغياب', roles:['owner','admin','coach'] },
+      { id:'payments', icon:'fas fa-money-bill-wave', label:'المدفوعات والمديونية', roles:['owner','admin'] },
+      { id:'invoices', icon:'fas fa-file-invoice', label:'الفواتير', roles:['owner','admin'] },
+      { id:'coaches', icon:'fas fa-chalkboard-teacher', label:'المدربون', roles:['owner','admin'] },
+      { id:'expenses', icon:'fas fa-receipt', label:'المصروفات', roles:['owner'] },
+      { id:'reports', icon:'fas fa-chart-bar', label:'التقارير', roles:['owner','admin'] },
+    ];
+    let html = '';
+    items.forEach(item => {
+      if (!item.roles.includes(role)) return;
+      html += `<div class="nav-item" data-page="${item.id}" onclick="App.navigate('${item.id}')">
+        <i class="${item.icon}"></i><span>${item.label}</span></div>`;
+      if (item.id === 'attendance') html += '<div class="nav-divider"></div>';
+      if (item.id === 'coaches') html += '<div class="nav-divider"></div>';
+    });
+    document.getElementById('sidebarNav').innerHTML = html;
+  },
+
+  updateUserInfo() {
+    const u = App.currentUser;
+    const roleMap = { owner:'صاحب الأكاديمية', admin:'إداري', coach:'مدرب' };
+    document.getElementById('userName').textContent = u.name;
+    document.getElementById('userRole').textContent = roleMap[u.role];
+    document.getElementById('userAvatar').textContent = u.name.charAt(0);
+  },
+
+  navigate(page) {
+    App.currentPage = page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    const pageEl = document.getElementById('page-' + page);
+    if (pageEl) pageEl.classList.add('active');
+    const navEl = document.querySelector(`.nav-item[data-page="${page}"]`);
+    if (navEl) navEl.classList.add('active');
+    const titles = { dashboard:'لوحة التحكم', players:'اللاعبون', attendance:'الحضور والغياب', payments:'المدفوعات والمديونية', invoices:'الفواتير', coaches:'المدربون', reports:'التقارير', expenses:'المصروفات' };
+    document.getElementById('pageTitle').textContent = titles[page] || '';
+    App.renderPage(page);
+    // Close mobile sidebar
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+  },
+
+  toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('active');
+  },
+
+  renderPage(page) {
+    switch(page) {
+      case 'dashboard': Dashboard.render(); break;
+      case 'players': Players.render(); break;
+      case 'attendance': Attendance.render(); break;
+      case 'payments': Payments.render(); break;
+      case 'invoices': Invoices.render(); break;
+      case 'coaches': Coaches.render(); break;
+      case 'reports': Reports.render(); break;
+      case 'expenses': Expenses.render(); break;
+    }
+  },
+
+  isOwner() { return App.currentUser && App.currentUser.role === 'owner'; },
+  isAdmin() { return App.currentUser && App.currentUser.role === 'admin'; },
+  isCoach() { return App.currentUser && App.currentUser.role === 'coach'; },
+
+  getMyPlayers() {
+    const players = DB.get('players') || [];
+    if (App.isOwner()) return players;
+    if (App.isCoach()) {
+      const coachId = App.currentUser.coachId;
+      return players.filter(p => p.coachId === coachId);
+    }
+    return players;
+  },
+  getMyCoaches() {
+    const coaches = DB.get('coaches') || [];
+    return coaches;
+  }
+};
+
+// ========== TOAST ==========
+const Toast = {
+  show(msg, type) {
+    const c = document.getElementById('toastContainer');
+    const icons = { success:'fas fa-check-circle', error:'fas fa-times-circle', warning:'fas fa-exclamation-triangle', info:'fas fa-info-circle' };
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.innerHTML = `<i class="${icons[type]}"></i><span>${msg}</span>`;
+    t.onclick = () => { t.classList.add('hide'); setTimeout(()=>t.remove(), 300); };
+    c.appendChild(t);
+    setTimeout(() => { t.classList.add('hide'); setTimeout(()=>t.remove(), 300); }, 3500);
+  },
+  success(m) { Toast.show(m,'success'); },
+  error(m) { Toast.show(m,'error'); },
+  warning(m) { Toast.show(m,'warning'); },
+  info(m) { Toast.show(m,'info'); }
+};
+
+// ========== MODAL ==========
+const Modal = {
+  open(html) {
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('modalOverlay').classList.add('active');
+  },
+  close() {
+    document.getElementById('modalOverlay').classList.remove('active');
+  },
+  confirm(msg, onYes) {
+    Modal.open(`
+      <div class="modal-header"><h3><i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i> تأكيد</h3><button class="modal-close" onclick="Modal.close()"><i class="fas fa-times"></i></button></div>
+      <div class="modal-body"><p style="font-size:1rem;font-weight:500;text-align:center;padding:10px 0">${msg}</p></div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" onclick="(${onYes.toString()})(); Modal.close();">نعم، تأكيد</button>
+        <button class="btn btn-outline" onclick="Modal.close()">إلغاء</button>
+      </div>
+    `);
+  }
+};
+
+// ========== WHATSAPP ==========
+function waLink(phone, msg) {
+  let p = phone.replace(/\D/g, '');
+  if (p.startsWith('0')) p = '20' + p.substr(1);
+  if (!p.startsWith('20')) p = '20' + p;
+  return `https://wa.me/${p}?text=${encodeURIComponent(msg)}`;
+}
+
+// ========== GROUPS HELPER ==========
+const GROUPS = ['U8','U10','U12','U14','U16','U18','Adults'];
+
+// ========== DASHBOARD ==========
+const Dashboard = {
+  render() {
+    const players = App.getMyPlayers().filter(p => p.status === 'active');
+    const allPlayers = App.getMyPlayers();
+    const coaches = App.getMyCoaches();
+    const payments = DB.get('payments') || [];
+    const expenses = DB.get('expenses') || [];
+    const advances = DB.get('advances') || [];
+    const salaryPayments = DB.get('salaryPayments') || [];
+    const attendance = DB.get('attendance') || [];
+    const cm = DB.currentMonth();
+
+    // Calculate stats
+    const totalActive = players.length;
+    const expectedRevenue = players.reduce((s,p) => s + (p.paymentType==='monthly' ? (p.monthlyFee||0) : 0), 0);
+    const monthPayments = payments.filter(p => DB.getMonth(p.date) === cm);
+    const totalCollected = monthPayments.reduce((s,p) => s + (p.amount||0), 0);
+    const totalDebt = expectedRevenue - totalCollected;
+    const totalCoachSalaries = coaches.reduce((s,c) => s + (c.salary||0), 0);
+    const monthExpenses = expenses.filter(e => DB.getMonth(e.date) === cm).reduce((s,e) => s + (e.amount||0), 0);
+    const monthSalaryPaid = salaryPayments.filter(s => DB.getMonth(s.date) === cm).reduce((s,p) => s + (p.amount||0), 0);
+    const netProfit = totalCollected - monthExpenses - monthSalaryPaid;
+
+    // Absent alerts
+    const absentAlerts = [];
+    players.forEach(p => {
+      const pAtt = attendance.filter(a => a.playerId === p.id).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
+      let consecutive = 0;
+      for (let a of pAtt) { if (a.status === 'absent') consecutive++; else break; }
+      if (consecutive >= 3) absentAlerts.push({ player: p, count: consecutive });
+    });
+
+    // Overdue debts
+    const debtAlerts = [];
+    players.forEach(p => {
+      if (p.paymentType !== 'monthly') return;
+      const pPay = monthPayments.filter(x => x.playerId === p.id);
+      const paid = pPay.reduce((s,x) => s + x.amount, 0);
+      const owed = (p.monthlyFee||0) - paid;
+      if (owed > 0) debtAlerts.push({ player: p, owed });
+    });
+
+    let html = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fas fa-users"></i></div>
+        <div class="stat-value">${totalActive}</div>
+        <div class="stat-label">لاعب نشط</div>
+      </div>
+      <div class="stat-card accent">
+        <div class="stat-icon gold"><i class="fas fa-coins"></i></div>
+        <div class="stat-value">${DB.fmtMoney(expectedRevenue)}</div>
+        <div class="stat-label">الإيراد المتوقع هذا الشهر</div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-icon green"><i class="fas fa-hand-holding-usd"></i></div>
+        <div class="stat-value">${DB.fmtMoney(totalCollected)}</div>
+        <div class="stat-label">المحصّل هذا الشهر</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-icon red"><i class="fas fa-exclamation-circle"></i></div>
+        <div class="stat-value">${DB.fmtMoney(Math.max(0,totalDebt))}</div>
+        <div class="stat-label">المديونية المعلقة</div>
+      </div>`;
+    if (App.isOwner()) {
+      html += `
+      <div class="stat-card info">
+        <div class="stat-icon blue"><i class="fas fa-chalkboard-teacher"></i></div>
+        <div class="stat-value">${DB.fmtMoney(totalCoachSalaries)}</div>
+        <div class="stat-label">رواتب المدربين المستحقة</div>
+      </div>
+      <div class="stat-card ${netProfit >= 0 ? 'success' : 'danger'}">
+        <div class="stat-icon ${netProfit >= 0 ? 'green' : 'red'}"><i class="fas fa-chart-line"></i></div>
+        <div class="stat-value">${DB.fmtMoney(netProfit)}</div>
+        <div class="stat-label">صافي الربح هذا الشهر</div>
+      </div>`;
+    }
+    html += `</div>`;
+
+    // Chart
+    if (App.isOwner() || App.isAdmin()) {
+      html += `<div class="chart-container"><h4><i class="fas fa-chart-bar" style="color:var(--primary)"></i> إيرادات آخر 6 شهور</h4><div class="chart-canvas-wrap"><canvas id="revenueChart"></canvas></div></div>`;
+    }
+
+    // Alerts
+    if (absentAlerts.length > 0 || debtAlerts.length > 0) {
+      html += `<div class="table-container"><div class="table-header"><h4><i class="fas fa-bell" style="color:var(--warning)"></i> تنبيهات مهمة</h4></div><div style="padding:16px">`;
+      absentAlerts.forEach(a => {
+        html += `<div class="alert-item"><i class="fas fa-user-times"></i><div class="alert-text">${a.player.name} - غائب ${a.count} حصص متتالية</div>
+          <a href="${waLink(a.player.parentPhone, `مرحباً، نود إعلامكم بأن ${a.player.name} غائب منذ ${a.count} حصص متتالية عن تدريبات أكاديمية جرين هيل. نرجو التواصل معنا. شكراً 🟢`)}" target="_blank" class="btn btn-whatsapp btn-sm"><i class="fab fa-whatsapp"></i> تواصل</a></div>`;
+      });
+      debtAlerts.forEach(a => {
+        html += `<div class="alert-item warning"><i class="fas fa-money-bill-wave"></i><div class="alert-text">${a.player.name} - مديونية ${DB.fmtMoney(a.owed)} جنيه</div>
+          <a href="${waLink(a.player.parentPhone, `مرحباً ${a.player.name}، تذكير بسداد رسوم ${a.player.name} بمبلغ ${a.owed} جنيه لأكاديمية جرين هيل. شكراً لتعاونكم 🟢`)}" target="_blank" class="btn btn-whatsapp btn-sm"><i class="fab fa-whatsapp"></i> تذكير</a></div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    document.getElementById('page-dashboard').innerHTML = html;
+
+    // Draw chart
+    if (App.isOwner() || App.isAdmin()) {
+      setTimeout(() => Dashboard.drawChart(), 100);
+    }
+  },
+
+  drawChart() {
+    const canvas = document.getElementById('revenueChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * 2;
+    canvas.height = rect.height * 2;
+    ctx.scale(2, 2);
+    const w = rect.width, h = rect.height;
+
+    const payments = DB.get('payments') || [];
+    const months = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const label = d.toLocaleDateString('ar-EG', { month: 'short', year: 'numeric' });
+      const total = payments.filter(p => DB.getMonth(p.date) === key).reduce((s,p) => s + (p.amount||0), 0);
+      months.push({ key, label, total });
+    }
+
+    const maxVal = Math.max(...months.map(m => m.total), 1);
+    const padT = 30, padB = 50, padL = 20, padR = 60;
+    const chartW = w - padL - padR;
+    const chartH = h - padT - padB;
+    const barW = chartW / months.length * 0.5;
+    const gap = chartW / months.length;
+
+    // Background grid
+    ctx.strokeStyle = '#E5E7EB';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + (chartH / 4) * i;
+      ctx.beginPath(); ctx.moveTo(padR, y); ctx.lineTo(w - padL, y); ctx.stroke();
+      ctx.fillStyle = '#9CA3AF';
+      ctx.font = '10px Cairo';
+      ctx.textAlign = 'right';
+      ctx.fillText(DB.fmtMoney(Math.round(maxVal - (maxVal/4)*i)), padR - 6, y + 4);
+    }
+
+    // Bars
+    months.forEach((m, i) => {
+      const x = padR + gap * i + (gap - barW) / 2;
+      const barH = (m.total / maxVal) * chartH;
+      const y = padT + chartH - barH;
+
+      // Bar gradient
+      const grad = ctx.createLinearGradient(x, y, x, padT + chartH);
+      grad.addColorStop(0, '#2E7D32');
+      grad.addColorStop(1, '#1B5E20');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(x, y, barW, barH, [4, 4, 0, 0]);
+      ctx.fill();
+
+      // Value on top
+      if (m.total > 0) {
+        ctx.fillStyle = '#1B5E20';
+        ctx.font = 'bold 10px Cairo';
+        ctx.textAlign = 'center';
+        ctx.fillText(DB.fmtMoney(m.total), x + barW/2, y - 6);
+      }
+
+      // Label
+      ctx.fillStyle = '#6B7280';
+      ctx.font = '10px Cairo';
+      ctx.textAlign = 'center';
+      ctx.fillText(m.label, x + barW/2, padT + chartH + 20);
+    });
+  }
+};
+
+// ========== PLAYERS ==========
+const Players = {
+  searchTerm: '',
+  filterGroup: '',
+  filterStatus: '',
+  viewingPlayer: null,
+
+  render() {
+    if (Players.viewingPlayer) { Players.renderProfile(); return; }
+    const players = App.getMyPlayers();
+    const coaches = DB.get('coaches') || [];
+    let filtered = players;
+    if (Players.searchTerm) filtered = filtered.filter(p => p.name.includes(Players.searchTerm));
+    if (Players.filterGroup) filtered = filtered.filter(p => p.group === Players.filterGroup);
+    if (Players.filterStatus) filtered = filtered.filter(p => p.status === Players.filterStatus);
+
+    let html = `
+    <div class="filter-bar">
+      <div class="search-box"><i class="fas fa-search"></i><input placeholder="بحث بالاسم..." value="${Players.searchTerm}" oninput="Players.searchTerm=this.value;Players.render()"></div>
+      <select onchange="Players.filterGroup=this.value;Players.render()">
+        <option value="">كل المجموعات</option>
+        ${GROUPS.map(g => `<option value="${g}" ${Players.filterGroup===g?'selected':''}>${g}</option>`).join('')}
+      </select>
+      <select onchange="Players.filterStatus=this.value;Players.render()">
+        <option value="">كل الحالات</option>
+        <option value="active" ${Players.filterStatus==='active'?'selected':''}>نشط</option>
+        <option value="inactive" ${Players.filterStatus==='inactive'?'selected':''}>غير نشط</option>
+      </select>
+      ${!App.isCoach() ? `<button class="btn btn-primary" onclick="Players.showForm()"><i class="fas fa-plus"></i> إضافة لاعب</button>` : ''}
+    </div>
+    <div class="table-container">
+      <div class="table-responsive"><table>
+        <thead><tr><th>كود اللاعب</th><th>الاسم</th><th>المجموعة</th><th>العمر</th><th>المدرب</th><th>نوع الدفع</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+        <tbody>`;
+    if (filtered.length === 0) {
+      html += `<tr><td colspan="7"><div class="empty-state"><i class="fas fa-users"></i><p>لا يوجد لاعبون</p><div class="sub">أضف لاعباً جديداً للبدء</div></div></td></tr>`;
+    }
+    filtered.forEach(p => {
+      const coach = coaches.find(c => c.id === p.coachId);
+      const att = DB.get('attendance') || [];
+      const consAbsent = Players.getConsecutiveAbsences(p.id, att);
+      html += `<tr>
+        <td><strong>${p.code || p.id.substring(0,5).toUpperCase()}</strong></td>
+        <td><span style="font-weight:600;cursor:pointer;color:var(--primary)" onclick="Players.viewPlayer('${p.id}')">${p.name}</span> ${consAbsent >= 3 ? `<span class="badge-status badge-warning" title="غائب ${consAbsent} حصص متتالية">⚠ ${consAbsent}</span>` : ''}</td>
+        <td>${p.group}</td>
+        <td>${p.age}</td>
+        <td>${coach ? coach.name : '-'}</td>
+        <td>${p.paymentType==='monthly'?'شهري ('+DB.fmtMoney(p.monthlyFee)+' ج)':'دوري ('+DB.fmtMoney(p.sessionFee)+' ج/حصة)'}</td>
+        <td><span class="badge-status ${p.status==='active'?'badge-active':'badge-inactive'}">${p.status==='active'?'نشط':'غير نشط'}</span></td>
+        <td>
+          <button class="btn btn-sm btn-outline" onclick="Players.viewPlayer('${p.id}')" title="عرض"><i class="fas fa-eye"></i></button>
+          ${!App.isCoach() ? `<button class="btn btn-sm btn-primary" onclick="Players.showForm('${p.id}')" title="تعديل"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="Players.deletePlayer('${p.id}')" title="حذف"><i class="fas fa-trash"></i></button>` : ''}
+        </td>
+      </tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+    document.getElementById('page-players').innerHTML = html;
+  },
+
+  getConsecutiveAbsences(playerId, attendance) {
+    const pAtt = attendance.filter(a => a.playerId === playerId).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
+    let count = 0;
+    for (let a of pAtt) { if (a.status === 'absent') count++; else break; }
+    return count;
+  },
+
+  showForm(id) {
+    const coaches = DB.get('coaches') || [];
+    let p = { code:'', name:'', phone:'', parentPhone:'', age:'', group:'U10', coachId: coaches[0]?.id||'', status:'active', paymentType:'monthly', monthlyFee:500, sessionFee:50, notes:'' };
+    let title = 'إضافة لاعب جديد';
+    if (id) {
+      const players = DB.get('players') || [];
+      p = players.find(x => x.id === id) || p;
+      title = 'تعديل بيانات اللاعب';
+    }
+    Modal.open(`
+      <div class="modal-header"><h3><i class="fas fa-user-plus" style="color:var(--primary)"></i> ${title}</h3><button class="modal-close" onclick="Modal.close()"><i class="fas fa-times"></i></button></div>
+      <div class="modal-body">
+        <div class="form-row three">
+          <div class="form-group"><label>كود اللاعب</label><input id="pCode" value="${p.code||''}" placeholder="تلقائي إن تُرك فارغاً"></div>
+          <div class="form-group"><label>الاسم الكامل *</label><input id="pName" value="${p.name}" placeholder="اسم اللاعب"></div>
+          <div class="form-group"><label>العمر *</label><input id="pAge" type="number" value="${p.age}" placeholder="العمر"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>هاتف اللاعب</label><input id="pPhone" value="${p.phone}" placeholder="01xxxxxxxxx"></div>
+          <div class="form-group"><label>هاتف ولي الأمر *</label><input id="pParentPhone" value="${p.parentPhone}" placeholder="01xxxxxxxxx"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>المجموعة *</label><select id="pGroup">${GROUPS.map(g=>`<option value="${g}" ${p.group===g?'selected':''}>${g}</option>`).join('')}</select></div>
+          <div class="form-group"><label>المدرب *</label><select id="pCoach">${coaches.map(c=>`<option value="${c.id}" ${p.coachId===c.id?'selected':''}>${c.name}</option>`).join('')}</select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>الحالة</label><select id="pStatus"><option value="active" ${p.status==='active'?'selected':''}>نشط</option><option value="inactive" ${p.status==='inactive'?'selected':''}>غير نشط</option></select></div>
+          <div class="form-group"><label>نوع الدفع</label><select id="pPayType" onchange="document.getElementById('monthlyFeeWrap').style.display=this.value==='monthly'?'block':'none';document.getElementById('sessionFeeWrap').style.display=this.value==='periodic'?'block':'none';">
+            <option value="monthly" ${p.paymentType==='monthly'?'selected':''}>شهري</option><option value="periodic" ${p.paymentType==='periodic'?'selected':''}>دوري (بالحصة)</option></select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" id="monthlyFeeWrap" style="display:${p.paymentType==='monthly'?'block':'none'}"><label>الاشتراك الشهري (جنيه)</label><input id="pMonthlyFee" type="number" value="${p.monthlyFee||500}"></div>
+          <div class="form-group" id="sessionFeeWrap" style="display:${p.paymentType==='periodic'?'block':'none'}"><label>سعر الحصة (جنيه)</label><input id="pSessionFee" type="number" value="${p.sessionFee||50}"></div>
+        </div>
+        <div class="form-group"><label>ملاحظات</label><textarea id="pNotes" rows="2">${p.notes||''}</textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="Players.save('${id||''}')"><i class="fas fa-save"></i> حفظ</button>
+        <button class="btn btn-outline" onclick="Modal.close()">إلغاء</button>
+      </div>
+    `);
+  },
+
+  save(id) {
+    const name = document.getElementById('pName').value.trim();
+    const age = parseInt(document.getElementById('pAge').value);
+    const parentPhone = document.getElementById('pParentPhone').value.trim();
+    if (!name || !age || !parentPhone) { Toast.error('يرجى ملء جميع الحقول المطلوبة'); return; }
+
+    const players = DB.get('players') || [];
+    let code = document.getElementById('pCode').value.trim();
+    if (!code) code = 'GH-' + Math.floor(1000 + Math.random() * 9000);
+    const data = {
+      code, name, age, parentPhone,
+      phone: document.getElementById('pPhone').value.trim(),
+      group: document.getElementById('pGroup').value,
+      coachId: document.getElementById('pCoach').value,
+      status: document.getElementById('pStatus').value,
+      paymentType: document.getElementById('pPayType').value,
+      monthlyFee: parseInt(document.getElementById('pMonthlyFee').value) || 0,
+      sessionFee: parseInt(document.getElementById('pSessionFee').value) || 0,
+      notes: document.getElementById('pNotes').value.trim()
+    };
+    if (id) {
+      const idx = players.findIndex(p => p.id === id);
+      if (idx >= 0) players[idx] = { ...players[idx], ...data };
+      Toast.success('تم تحديث بيانات اللاعب بنجاح');
+    } else {
+      data.id = DB.genId();
+      data.regDate = DB.today();
+      players.push(data);
+      Toast.success('تم إضافة اللاعب بنجاح');
+    }
+    DB.set('players', players);
+    Modal.close();
+    Players.render();
+  },
+
+  deletePlayer(id) {
+    const players = DB.get('players') || [];
+    const p = players.find(x => x.id === id);
+    Modal.confirm(`هل أنت متأكد من حذف اللاعب "${p?p.name:''}"؟ لا يمكن التراجع عن هذا الإجراء.`, () => {
+      const filtered = players.filter(x => x.id !== id);
+      DB.set('players', filtered);
+      Toast.success('تم حذف اللاعب بنجاح');
+      Players.viewingPlayer = null;
+      Players.render();
+    });
+  },
+
+  viewPlayer(id) {
+    Players.viewingPlayer = id;
+    Players.render();
+  },
+
+  renderProfile() {
+    const id = Players.viewingPlayer;
+    const players = DB.get('players') || [];
+    const p = players.find(x => x.id === id);
+    if (!p) { Players.viewingPlayer = null; Players.render(); return; }
+    const coaches = DB.get('coaches') || [];
+    const coach = coaches.find(c => c.id === p.coachId);
+    const attendance = (DB.get('attendance') || []).filter(a => a.playerId === id).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
+    const payments = (DB.get('payments') || []).filter(x => x.playerId === id).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
+    const cm = DB.currentMonth();
+    const monthPaid = payments.filter(x => DB.getMonth(x.date) === cm).reduce((s,x) => s + x.amount, 0);
+    const owed = p.paymentType === 'monthly' ? (p.monthlyFee - monthPaid) : 0;
+
+    let html = `
+    <button class="back-btn" onclick="Players.viewingPlayer=null;Players.render()"><i class="fas fa-arrow-right"></i> العودة للقائمة</button>
+    <div class="profile-section">
+      <div class="profile-header-bar">
+        <div class="profile-avatar"><i class="fas fa-user"></i></div>
+        <div><h3>${p.name} <span style="font-size:0.9rem;opacity:0.8">(${p.code || p.id.substring(0,5).toUpperCase()})</span></h3><div class="meta">${p.group} | ${p.status==='active'?'نشط':'غير نشط'}</div></div>
+      </div>
+      <div class="profile-body">
+        <div class="info-grid">
+          <div class="info-item"><label>العمر</label><span>${p.age} سنة</span></div>
+          <div class="info-item"><label>هاتف اللاعب</label><span>${p.phone||'-'}</span></div>
+          <div class="info-item"><label>هاتف ولي الأمر</label><span>${p.parentPhone}</span></div>
+          <div class="info-item"><label>المدرب</label><span>${coach?coach.name:'-'}</span></div>
+          <div class="info-item"><label>تاريخ التسجيل</label><span>${p.regDate}</span></div>
+          <div class="info-item"><label>نوع الدفع</label><span>${p.paymentType==='monthly'?'شهري':'دوري (بالحصة)'}</span></div>
+          <div class="info-item"><label>الرسوم</label><span>${p.paymentType==='monthly'?DB.fmtMoney(p.monthlyFee)+' ج/شهر':DB.fmtMoney(p.sessionFee)+' ج/حصة'}</span></div>
+          <div class="info-item"><label>المدفوع هذا الشهر</label><span class="paid-amount">${DB.fmtMoney(monthPaid)} ج</span></div>
+          ${owed > 0 ? `<div class="info-item"><label>المتبقي</label><span class="debt-amount">${DB.fmtMoney(owed)} ج</span></div>` : ''}
+        </div>
+        ${p.notes ? `<div style="margin-top:16px;padding:12px;background:#F9FAFB;border-radius:8px;font-size:0.88rem"><strong>ملاحظات:</strong> ${p.notes}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="section-title"><i class="fas fa-clipboard-check"></i> سجل الحضور (آخر 20)</div>
+    <div class="table-container"><div class="table-responsive"><table>
+      <thead><tr><th>التاريخ</th><th>الحالة</th></tr></thead><tbody>`;
+    if (attendance.length === 0) html += `<tr><td colspan="2" style="text-align:center;padding:20px;color:var(--text-light)">لا يوجد سجل حضور</td></tr>`;
+    attendance.slice(0, 20).forEach(a => {
+      html += `<tr><td>${a.date}</td><td><span class="badge-status badge-${a.status}">${a.status==='present'?'حاضر':a.status==='absent'?'غائب':'متأخر'}</span></td></tr>`;
+    });
+    html += `</tbody></table></div></div>
+
+    <div class="section-title"><i class="fas fa-money-bill-wave"></i> سجل المدفوعات</div>
+    <div class="table-container"><div class="table-responsive"><table>
+      <thead><tr><th>التاريخ</th><th>المبلغ</th><th>الطريقة</th><th>ملاحظات</th></tr></thead><tbody>`;
+    if (payments.length === 0) html += `<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-light)">لا يوجد مدفوعات</td></tr>`;
+    payments.forEach(x => {
+      html += `<tr><td>${x.date}</td><td class="paid-amount">${DB.fmtMoney(x.amount)} ج</td><td>${x.method==='cash'?'كاش':'تحويل'}</td><td>${x.notes||'-'}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+    document.getElementById('page-players').innerHTML = html;
+  }
+};
+
+// ========== ATTENDANCE ==========
+const Attendance = {
+  selectedGroup: '',
+  selectedDate: '',
+  marks: {},
+
+  render() {
+    const players = App.getMyPlayers().filter(p => p.status === 'active');
+    const groups = [...new Set(players.map(p => p.group))].sort();
+    if (!Attendance.selectedDate) Attendance.selectedDate = DB.todayISO();
+
+    let html = `
+    <div class="filter-bar">
+      <select id="attGroup" onchange="Attendance.selectedGroup=this.value;Attendance.loadMarks()">
+        <option value="">-- اختر المجموعة --</option>
+        ${groups.map(g => `<option value="${g}" ${Attendance.selectedGroup===g?'selected':''}>${g}</option>`).join('')}
+      </select>
+      <input type="date" value="${Attendance.selectedDate}" onchange="Attendance.selectedDate=this.value;Attendance.loadMarks()">
+      ${Attendance.selectedGroup ? `<button class="btn btn-primary" onclick="Attendance.saveAll()"><i class="fas fa-save"></i> حفظ الحضور</button>` : ''}
+    </div>`;
+
+    if (!Attendance.selectedGroup) {
+      html += `<div class="empty-state"><i class="fas fa-clipboard-check"></i><p>اختر المجموعة لبدء تسجيل الحضور</p></div>`;
+    } else {
+      const gPlayers = players.filter(p => p.group === Attendance.selectedGroup);
+      if (gPlayers.length === 0) {
+        html += `<div class="empty-state"><i class="fas fa-users"></i><p>لا يوجد لاعبون في هذه المجموعة</p></div>`;
+      } else {
+        html += `<div class="attendance-grid">`;
+        gPlayers.forEach(p => {
+          const mark = Attendance.marks[p.id] || '';
+          html += `<div class="attendance-row">
+            <div class="player-name">${p.name}</div>
+            <div class="attendance-btns">
+              <button class="att-btn present ${mark==='present'?'selected':''}" onclick="Attendance.mark('${p.id}','present')">حاضر ✓</button>
+              <button class="att-btn absent ${mark==='absent'?'selected':''}" onclick="Attendance.mark('${p.id}','absent')">غائب ✗</button>
+              <button class="att-btn late ${mark==='late'?'selected':''}" onclick="Attendance.mark('${p.id}','late')">متأخر ⏰</button>
+            </div>
+            ${mark==='late' ? `<a href="${waLink(p.parentPhone, `مرحباً، نود إعلامكم بأن ${p.name} تأخر اليوم ${DB.fmtDate(new Date(Attendance.selectedDate))} عن تدريب أكاديمية جرين هيل. نرجو الالتزام بالمواعيد. شكراً 🟢`)}" target="_blank" class="btn btn-whatsapp btn-sm"><i class="fab fa-whatsapp"></i> إرسال تنبيه</a>` : ''}
+          </div>`;
+        });
+        html += `</div>`;
+      }
+    }
+
+    // Recent attendance history
+    const allAtt = DB.get('attendance') || [];
+    const recentDates = [...new Set(allAtt.map(a => a.date))].sort((a,b) => DB.parseDate(b) - DB.parseDate(a)).slice(0, 5);
+    if (recentDates.length > 0) {
+      html += `<div class="section-title" style="margin-top:30px"><i class="fas fa-history"></i> آخر سجلات الحضور</div>`;
+      recentDates.forEach(date => {
+        const dayAtt = allAtt.filter(a => a.date === date);
+        const present = dayAtt.filter(a => a.status === 'present').length;
+        const absent = dayAtt.filter(a => a.status === 'absent').length;
+        const late = dayAtt.filter(a => a.status === 'late').length;
+        html += `<div style="background:white;padding:14px 18px;border-radius:var(--radius-sm);margin-bottom:8px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <strong>${date}</strong>
+          <div style="display:flex;gap:12px">
+            <span class="badge-status badge-present">حاضر: ${present}</span>
+            <span class="badge-status badge-absent">غائب: ${absent}</span>
+            <span class="badge-status badge-late">متأخر: ${late}</span>
+          </div>
+        </div>`;
+      });
+    }
+
+    document.getElementById('page-attendance').innerHTML = html;
+  },
+
+  loadMarks() {
+    Attendance.marks = {};
+    if (!Attendance.selectedGroup || !Attendance.selectedDate) { Attendance.render(); return; }
+    const dateStr = DB.fmtDate(new Date(Attendance.selectedDate));
+    const att = DB.get('attendance') || [];
+    att.filter(a => a.date === dateStr && a.group === Attendance.selectedGroup).forEach(a => {
+      Attendance.marks[a.playerId] = a.status;
+    });
+    Attendance.render();
+  },
+
+  mark(playerId, status) {
+    if (Attendance.marks[playerId] === status) {
+      delete Attendance.marks[playerId];
+    } else {
+      Attendance.marks[playerId] = status;
+    }
+    Attendance.render();
+  },
+
+  saveAll() {
+    if (!Attendance.selectedGroup) return;
+    const dateStr = DB.fmtDate(new Date(Attendance.selectedDate));
+    let att = DB.get('attendance') || [];
+    // Remove existing for this group+date
+    att = att.filter(a => !(a.date === dateStr && a.group === Attendance.selectedGroup));
+    // Add new
+    Object.entries(Attendance.marks).forEach(([playerId, status]) => {
+      att.push({ id: DB.genId(), playerId, group: Attendance.selectedGroup, date: dateStr, status });
+    });
+    DB.set('attendance', att);
+    Toast.success('تم حفظ الحضور بنجاح');
+    Attendance.render();
+  }
+};
+
+// ========== PAYMENTS ==========
+const Payments = {
+  tab: 'payments',
+
+  render() {
+    const players = App.getMyPlayers().filter(p => p.status === 'active');
+    const allPayments = DB.get('payments') || [];
+    const cm = DB.currentMonth();
+
+    let html = `
+    <div class="tabs">
+      <button class="tab-btn ${Payments.tab==='payments'?'active':''}" onclick="Payments.tab='payments';Payments.render()">المدفوعات</button>
+      <button class="tab-btn ${Payments.tab==='debts'?'active':''}" onclick="Payments.tab='debts';Payments.render()">المديونية</button>
+    </div>`;
+
+    if (Payments.tab === 'payments') {
+      html += `
+      <div class="filter-bar">
+        <button class="btn btn-primary" onclick="Payments.showPaymentForm()"><i class="fas fa-plus"></i> تسجيل دفعة</button>
+      </div>
+      <div class="table-container"><div class="table-responsive"><table>
+        <thead><tr><th>اللاعب</th><th>التاريخ</th><th>المبلغ</th><th>الطريقة</th><th>ملاحظات</th><th>إجراءات</th></tr></thead><tbody>`;
+      const monthPayments = allPayments.filter(p => DB.getMonth(p.date) === cm).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
+      if (monthPayments.length === 0) {
+        html += `<tr><td colspan="6"><div class="empty-state"><i class="fas fa-money-bill-wave"></i><p>لا توجد مدفوعات هذا الشهر</p></div></td></tr>`;
+      }
+      monthPayments.forEach(p => {
+        const player = players.find(x => x.id === p.playerId) || App.getMyPlayers().find(x => x.id === p.playerId);
+        html += `<tr>
+          <td style="font-weight:600">${player?player.name:'-'}</td>
+          <td>${p.date}</td>
+          <td class="paid-amount">${DB.fmtMoney(p.amount)} ج</td>
+          <td>${p.method==='cash'?'كاش':'تحويل'}</td>
+          <td>${p.notes||'-'}</td>
+          <td><button class="btn btn-sm btn-outline" onclick="Invoices.generateInvoice('${p.id}')"><i class="fas fa-file-invoice"></i></button></td>
+        </tr>`;
+      });
+      html += `</tbody></table></div></div>`;
+    } else {
+      // Debts view
+      const debtList = [];
+      players.forEach(p => {
+        if (p.paymentType !== 'monthly') return;
+        const pPay = allPayments.filter(x => x.playerId === p.id && DB.getMonth(x.date) === cm);
+        const paid = pPay.reduce((s,x) => s + x.amount, 0);
+        const owed = (p.monthlyFee || 0) - paid;
+        if (owed > 0) debtList.push({ player: p, paid, owed, fee: p.monthlyFee });
+      });
+      debtList.sort((a,b) => b.owed - a.owed);
+
+      html += `<div class="table-container"><div class="table-header"><h4><i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i> قائمة المديونية - الشهر الحالي</h4></div>
+        <div class="table-responsive"><table>
+        <thead><tr><th>اللاعب</th><th>المجموعة</th><th>الاشتراك</th><th>المدفوع</th><th>المتبقي</th><th>تذكير</th></tr></thead><tbody>`;
+      if (debtList.length === 0) {
+        html += `<tr><td colspan="6"><div class="empty-state"><i class="fas fa-check-circle" style="color:var(--success)"></i><p>لا توجد مديونية! 🎉</p></div></td></tr>`;
+      }
+      debtList.forEach(d => {
+        html += `<tr>
+          <td style="font-weight:600">${d.player.name}</td>
+          <td>${d.player.group}</td>
+          <td>${DB.fmtMoney(d.fee)} ج</td>
+          <td class="paid-amount">${DB.fmtMoney(d.paid)} ج</td>
+          <td class="debt-amount">${DB.fmtMoney(d.owed)} ج</td>
+          <td><a href="${waLink(d.player.parentPhone, `مرحباً، تذكير بسداد رسوم ${d.player.name} بمبلغ ${d.owed} جنيه لأكاديمية جرين هيل. شكراً لتعاونكم 🟢`)}" target="_blank" class="btn btn-whatsapp btn-sm"><i class="fab fa-whatsapp"></i> تذكير</a></td>
+        </tr>`;
+      });
+      html += `</tbody></table></div></div>`;
+    }
+    document.getElementById('page-payments').innerHTML = html;
+  },
+
+  showPaymentForm(playerId) {
+    const players = App.getMyPlayers().filter(p => p.status === 'active');
+    Modal.open(`
+      <div class="modal-header"><h3><i class="fas fa-money-bill-wave" style="color:var(--success)"></i> تسجيل دفعة جديدة</h3><button class="modal-close" onclick="Modal.close()"><i class="fas fa-times"></i></button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>اللاعب *</label><select id="payPlayer">${players.map(p=>`<option value="${p.id}" ${p.id===playerId?'selected':''}>${p.name} (${p.group})</option>`).join('')}</select></div>
+        <div class="form-row">
+          <div class="form-group"><label>المبلغ (جنيه) *</label><input id="payAmount" type="number" placeholder="0"></div>
+          <div class="form-group"><label>التاريخ</label><input id="payDate" type="date" value="${DB.todayISO()}"></div>
+        </div>
+        <div class="form-group"><label>طريقة الدفع</label><select id="payMethod"><option value="cash">كاش</option><option value="transfer">تحويل بنكي</option></select></div>
+        <div class="form-group"><label>ملاحظات</label><textarea id="payNotes" rows="2"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-success" onclick="Payments.savePayment()"><i class="fas fa-save"></i> حفظ الدفعة</button>
+        <button class="btn btn-outline" onclick="Modal.close()">إلغاء</button>
+      </div>
+    `);
+  },
+
+  savePayment() {
+    const playerId = document.getElementById('payPlayer').value;
+    const amount = parseFloat(document.getElementById('payAmount').value);
+    const dateVal = document.getElementById('payDate').value;
+    if (!playerId || !amount || amount <= 0) { Toast.error('يرجى ملء جميع الحقول المطلوبة'); return; }
+    const dateStr = DB.fmtDate(new Date(dateVal));
+    const payment = {
+      id: DB.genId(), playerId, amount, date: dateStr,
+      method: document.getElementById('payMethod').value,
+      notes: document.getElementById('payNotes').value.trim()
+    };
+    const payments = DB.get('payments') || [];
+    payments.push(payment);
+    DB.set('payments', payments);
+
+    // Auto-create invoice
+    const invoices = DB.get('invoices') || [];
+    const receiptNo = 'GH-' + String(invoices.length + 1).padStart(3, '0');
+    invoices.push({ id: DB.genId(), paymentId: payment.id, playerId, amount, date: dateStr, receiptNo });
+    DB.set('invoices', invoices);
+
+    Toast.success('تم تسجيل الدفعة بنجاح');
+    Modal.close();
+    Payments.render();
+  }
+};
+
+// ========== INVOICES ==========
+const Invoices = {
+  render() {
+    const invoices = (DB.get('invoices') || []).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
+    const players = DB.get('players') || [];
+
+    let html = `
+    <div class="table-container">
+      <div class="table-header"><h4><i class="fas fa-file-invoice" style="color:var(--primary)"></i> جميع الفواتير</h4></div>
+      <div class="table-responsive"><table>
+        <thead><tr><th>رقم الإيصال</th><th>اللاعب</th><th>المبلغ</th><th>التاريخ</th><th>تحميل</th></tr></thead><tbody>`;
+    if (invoices.length === 0) {
+      html += `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-file-invoice"></i><p>لا توجد فواتير</p></div></td></tr>`;
+    }
+    invoices.forEach(inv => {
+      const player = players.find(p => p.id === inv.playerId);
+      html += `<tr>
+        <td style="font-weight:700;color:var(--primary)">${inv.receiptNo}</td>
+        <td>${player?player.name:'-'}</td>
+        <td class="paid-amount">${DB.fmtMoney(inv.amount)} ج</td>
+        <td>${inv.date}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="Invoices.downloadPDF('${inv.id}')"><i class="fas fa-file-pdf"></i> PDF</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+    document.getElementById('page-invoices').innerHTML = html;
+  },
+
+  generateInvoice(paymentId) {
+    const invoices = DB.get('invoices') || [];
+    const existing = invoices.find(i => i.paymentId === paymentId);
+    if (existing) {
+      Invoices.downloadPDF(existing.id);
+      return;
+    }
+    const payments = DB.get('payments') || [];
+    const payment = payments.find(p => p.id === paymentId);
+    if (!payment) return;
+    const receiptNo = 'GH-' + String(invoices.length + 1).padStart(3, '0');
+    const inv = { id: DB.genId(), paymentId, playerId: payment.playerId, amount: payment.amount, date: payment.date, receiptNo };
+    invoices.push(inv);
+    DB.set('invoices', invoices);
+    Invoices.downloadPDF(inv.id);
+  },
+
+  downloadPDF(invId) {
+    const invoices = DB.get('invoices') || [];
+    const inv = invoices.find(i => i.id === invId);
+    if (!inv) return;
+    const players = DB.get('players') || [];
+    const player = players.find(p => p.id === inv.playerId);
+
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
+
+      // Header
+      doc.setFillColor(27, 94, 32);
+      doc.rect(0, 0, 148, 35, 'F');
+      doc.setTextColor(255, 215, 0);
+      doc.setFontSize(18);
+      doc.text('Green Hill Football Academy', 74, 14, { align: 'center' });
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.text('Payment Receipt', 74, 24, { align: 'center' });
+
+      // Body
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(12);
+      const y = 48;
+      doc.text(`Receipt No: ${inv.receiptNo}`, 130, y, { align: 'right' });
+      doc.text(`Date: ${inv.date}`, 130, y + 10, { align: 'right' });
+      doc.text(`Player: ${player ? player.name : '-'}`, 130, y + 22, { align: 'right' });
+      doc.text(`Group: ${player ? player.group : '-'}`, 130, y + 32, { align: 'right' });
+
+      doc.setDrawColor(27, 94, 32);
+      doc.setLineWidth(0.5);
+      doc.line(18, y + 40, 130, y + 40);
+
+      doc.setFontSize(16);
+      doc.setTextColor(27, 94, 32);
+      doc.text(`Amount: ${inv.amount} EGP`, 74, y + 54, { align: 'center' });
+
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text('Thank you for your payment!', 74, y + 70, { align: 'center' });
+      doc.text('Green Hill Football Academy', 74, y + 78, { align: 'center' });
+
+      doc.save(`Invoice_${inv.receiptNo}.pdf`);
+      Toast.success('تم تحميل الفاتورة بنجاح');
+    } catch(e) {
+      Toast.error('خطأ في إنشاء PDF: ' + e.message);
+    }
+  }
+};
+
+// ========== COACHES ==========
+const Coaches = {
+  viewingCoach: null,
+
+  render() {
+    if (Coaches.viewingCoach) { Coaches.renderProfile(); return; }
+    const coaches = DB.get('coaches') || [];
+    const advances = DB.get('advances') || [];
+    const salaryPayments = DB.get('salaryPayments') || [];
+    const cm = DB.currentMonth();
+
+    let html = `
+    <div class="filter-bar">
+      <button class="btn btn-primary" onclick="Coaches.showForm()"><i class="fas fa-plus"></i> إضافة مدرب</button>
+    </div>
+    <div class="table-container"><div class="table-responsive"><table>
+      <thead><tr><th>الاسم</th><th>الهاتف</th><th>التخصص</th><th>المجموعات</th><th>الراتب</th><th>السلف</th><th>المستحق</th><th>إجراءات</th></tr></thead><tbody>`;
+    coaches.forEach(c => {
+      const monthAdv = advances.filter(a => a.coachId === c.id && DB.getMonth(a.date) === cm).reduce((s,a) => s + a.amount, 0);
+      const monthPaid = salaryPayments.filter(s => s.coachId === c.id && DB.getMonth(s.date) === cm).reduce((s,p) => s + p.amount, 0);
+      const net = (c.salary || 0) - monthAdv - monthPaid;
+      html += `<tr>
+        <td><span style="font-weight:600;cursor:pointer;color:var(--primary)" onclick="Coaches.viewCoach('${c.id}')">${c.name}</span></td>
+        <td>${c.phone}</td>
+        <td>${c.specialization}</td>
+        <td>${(c.groups||[]).join(', ')}</td>
+        <td>${DB.fmtMoney(c.salary)} ج</td>
+        <td class="debt-amount">${DB.fmtMoney(monthAdv)} ج</td>
+        <td style="font-weight:700;color:${net>=0?'var(--success)':'var(--danger)'}">${DB.fmtMoney(net)} ج</td>
+        <td>
+          <button class="btn btn-sm btn-outline" onclick="Coaches.viewCoach('${c.id}')"><i class="fas fa-eye"></i></button>
+          <button class="btn btn-sm btn-primary" onclick="Coaches.showForm('${c.id}')"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="Coaches.deleteCoach('${c.id}')"><i class="fas fa-trash"></i></button>
+        </td>
+      </tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+    document.getElementById('page-coaches').innerHTML = html;
+  },
+
+  showForm(id) {
+    let c = { name:'', phone:'', specialization:'', groups:[], salary:5000 };
+    let title = 'إضافة مدرب جديد';
+    if (id) {
+      const coaches = DB.get('coaches') || [];
+      c = coaches.find(x => x.id === id) || c;
+      title = 'تعديل بيانات المدرب';
+    }
+    Modal.open(`
+      <div class="modal-header"><h3><i class="fas fa-chalkboard-teacher" style="color:var(--primary)"></i> ${title}</h3><button class="modal-close" onclick="Modal.close()"><i class="fas fa-times"></i></button></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group"><label>الاسم الكامل *</label><input id="cName" value="${c.name}"></div>
+          <div class="form-group"><label>الهاتف *</label><input id="cPhone" value="${c.phone}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>التخصص</label><input id="cSpec" value="${c.specialization}"></div>
+          <div class="form-group"><label>الراتب الأساسي (جنيه)</label><input id="cSalary" type="number" value="${c.salary}"></div>
+        </div>
+        <div class="form-group"><label>المجموعات المسؤول عنها</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+            ${GROUPS.map(g => `<label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer"><input type="checkbox" class="cGroupCheck" value="${g}" ${(c.groups||[]).includes(g)?'checked':''}> ${g}</label>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="Coaches.save('${id||''}')"><i class="fas fa-save"></i> حفظ</button>
+        <button class="btn btn-outline" onclick="Modal.close()">إلغاء</button>
+      </div>
+    `);
+  },
+
+  save(id) {
+    const name = document.getElementById('cName').value.trim();
+    const phone = document.getElementById('cPhone').value.trim();
+    if (!name || !phone) { Toast.error('يرجى ملء الحقول المطلوبة'); return; }
+    const groups = Array.from(document.querySelectorAll('.cGroupCheck:checked')).map(c => c.value);
+    const coaches = DB.get('coaches') || [];
+    const data = { name, phone, specialization: document.getElementById('cSpec').value.trim(), salary: parseInt(document.getElementById('cSalary').value)||0, groups };
+    if (id) {
+      const idx = coaches.findIndex(c => c.id === id);
+      if (idx >= 0) coaches[idx] = { ...coaches[idx], ...data };
+      Toast.success('تم تحديث بيانات المدرب');
+    } else {
+      data.id = DB.genId();
+      coaches.push(data);
+      Toast.success('تم إضافة المدرب بنجاح');
+    }
+    DB.set('coaches', coaches);
+    Modal.close();
+    Coaches.render();
+  },
+
+  deleteCoach(id) {
+    const coaches = DB.get('coaches') || [];
+    const c = coaches.find(x => x.id === id);
+    Modal.confirm(`هل أنت متأكد من حذف المدرب "${c?c.name:''}"؟`, () => {
+      DB.set('coaches', coaches.filter(x => x.id !== id));
+      Toast.success('تم حذف المدرب');
+      Coaches.viewingCoach = null;
+      Coaches.render();
+    });
+  },
+
+  viewCoach(id) {
+    Coaches.viewingCoach = id;
+    Coaches.render();
+  },
+
+  renderProfile() {
+    const id = Coaches.viewingCoach;
+    const coaches = DB.get('coaches') || [];
+    const c = coaches.find(x => x.id === id);
+    if (!c) { Coaches.viewingCoach = null; Coaches.render(); return; }
+    const advances = (DB.get('advances') || []).filter(a => a.coachId === id).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
+    const salaryPayments = (DB.get('salaryPayments') || []).filter(s => s.coachId === id).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
+    const cm = DB.currentMonth();
+    const monthAdv = advances.filter(a => DB.getMonth(a.date) === cm).reduce((s,a) => s + a.amount, 0);
+    const monthPaid = salaryPayments.filter(s => DB.getMonth(s.date) === cm).reduce((s,p) => s + p.amount, 0);
+    const net = (c.salary||0) - monthAdv - monthPaid;
+    const players = (DB.get('players') || []).filter(p => p.coachId === id && p.status === 'active');
+
+    let html = `
+    <button class="back-btn" onclick="Coaches.viewingCoach=null;Coaches.render()"><i class="fas fa-arrow-right"></i> العودة للقائمة</button>
+    <div class="profile-section">
+      <div class="profile-header-bar">
+        <div class="profile-avatar"><i class="fas fa-chalkboard-teacher"></i></div>
+        <div><h3>${c.name}</h3><div class="meta">${c.specialization} | ${(c.groups||[]).join(', ')}</div></div>
+      </div>
+      <div class="profile-body">
+        <div class="info-grid">
+          <div class="info-item"><label>الهاتف</label><span>${c.phone}</span></div>
+          <div class="info-item"><label>الراتب الأساسي</label><span>${DB.fmtMoney(c.salary)} ج</span></div>
+          <div class="info-item"><label>سلف الشهر</label><span class="debt-amount">${DB.fmtMoney(monthAdv)} ج</span></div>
+          <div class="info-item"><label>المدفوع من الراتب</label><span>${DB.fmtMoney(monthPaid)} ج</span></div>
+          <div class="info-item"><label>المستحق</label><span style="font-weight:700;color:${net>=0?'var(--success)':'var(--danger)'};">${DB.fmtMoney(net)} ج</span></div>
+          <div class="info-item"><label>عدد اللاعبين</label><span>${players.length}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:18px">
+      <button class="btn btn-accent" onclick="Coaches.showAdvanceForm('${id}')"><i class="fas fa-hand-holding-usd"></i> تسجيل سلفة</button>
+      <button class="btn btn-success" onclick="Coaches.showSalaryForm('${id}')"><i class="fas fa-money-check-alt"></i> صرف راتب</button>
+    </div>
+
+    <div class="section-title"><i class="fas fa-hand-holding-usd"></i> سجل السلف</div>
+    <div class="table-container"><div class="table-responsive"><table>
+      <thead><tr><th>التاريخ</th><th>المبلغ</th><th>ملاحظات</th></tr></thead><tbody>`;
+    if (advances.length === 0) html += `<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-light)">لا توجد سلف</td></tr>`;
+    advances.forEach(a => {
+      html += `<tr><td>${a.date}</td><td class="debt-amount">${DB.fmtMoney(a.amount)} ج</td><td>${a.notes||'-'}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>
+
+    <div class="section-title"><i class="fas fa-money-check-alt"></i> سجل صرف الرواتب</div>
+    <div class="table-container"><div class="table-responsive"><table>
+      <thead><tr><th>التاريخ</th><th>المبلغ</th><th>ملاحظات</th></tr></thead><tbody>`;
+    if (salaryPayments.length === 0) html += `<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-light)">لا يوجد صرف رواتب</td></tr>`;
+    salaryPayments.forEach(s => {
+      html += `<tr><td>${s.date}</td><td class="paid-amount">${DB.fmtMoney(s.amount)} ج</td><td>${s.notes||'-'}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+    document.getElementById('page-coaches').innerHTML = html;
+  },
+
+  showAdvanceForm(coachId) {
+    Modal.open(`
+      <div class="modal-header"><h3><i class="fas fa-hand-holding-usd" style="color:var(--accent-dark)"></i> تسجيل سلفة</h3><button class="modal-close" onclick="Modal.close()"><i class="fas fa-times"></i></button></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group"><label>المبلغ *</label><input id="advAmount" type="number" placeholder="0"></div>
+          <div class="form-group"><label>التاريخ</label><input id="advDate" type="date" value="${DB.todayISO()}"></div>
+        </div>
+        <div class="form-group"><label>ملاحظات</label><textarea id="advNotes" rows="2"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-accent" onclick="Coaches.saveAdvance('${coachId}')"><i class="fas fa-save"></i> حفظ</button>
+        <button class="btn btn-outline" onclick="Modal.close()">إلغاء</button>
+      </div>
+    `);
+  },
+
+  saveAdvance(coachId) {
+    const amount = parseFloat(document.getElementById('advAmount').value);
+    if (!amount || amount <= 0) { Toast.error('أدخل مبلغ صحيح'); return; }
+    const advances = DB.get('advances') || [];
+    advances.push({ id: DB.genId(), coachId, date: DB.fmtDate(new Date(document.getElementById('advDate').value)), amount, notes: document.getElementById('advNotes').value.trim() });
+    DB.set('advances', advances);
+    Toast.success('تم تسجيل السلفة');
+    Modal.close();
+    Coaches.render();
+  },
+
+  showSalaryForm(coachId) {
+    const coaches = DB.get('coaches') || [];
+    const c = coaches.find(x => x.id === coachId);
+    const advances = (DB.get('advances') || []).filter(a => a.coachId === coachId && DB.getMonth(a.date) === DB.currentMonth());
+    const totalAdv = advances.reduce((s,a) => s + a.amount, 0);
+    const salaryPayments = (DB.get('salaryPayments') || []).filter(s => s.coachId === coachId && DB.getMonth(s.date) === DB.currentMonth());
+    const totalPaid = salaryPayments.reduce((s,p) => s + p.amount, 0);
+    const net = (c?.salary||0) - totalAdv - totalPaid;
+
+    Modal.open(`
+      <div class="modal-header"><h3><i class="fas fa-money-check-alt" style="color:var(--success)"></i> صرف راتب</h3><button class="modal-close" onclick="Modal.close()"><i class="fas fa-times"></i></button></div>
+      <div class="modal-body">
+        <div style="background:#F0FFF4;padding:14px;border-radius:8px;margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>الراتب الأساسي:</span><strong>${DB.fmtMoney(c?.salary||0)} ج</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>إجمالي سلف الشهر (مخصومة تلقائياً):</span><strong class="debt-amount">${DB.fmtMoney(totalAdv)} ج</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>المصروف سابقاً هذا الشهر:</span><strong>${DB.fmtMoney(totalPaid)} ج</strong></div>
+          <div style="display:flex;justify-content:space-between;border-top:1px solid #C6F6D5;padding-top:6px"><span>الصافي المستحق الآن:</span><strong style="color:var(--primary);font-size:1.1rem">${DB.fmtMoney(net)} ج</strong></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>المبلغ المصروف *</label><input id="salAmount" type="number" value="${Math.max(0,net)}"></div>
+          <div class="form-group"><label>التاريخ</label><input id="salDate" type="date" value="${DB.todayISO()}"></div>
+        </div>
+        <div class="form-group"><label>ملاحظات</label><textarea id="salNotes" rows="2">راتب شهر ${new Date().toLocaleDateString('ar-EG',{month:'long',year:'numeric'})}</textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-success" onclick="Coaches.saveSalary('${coachId}')"><i class="fas fa-save"></i> حفظ</button>
+        <button class="btn btn-outline" onclick="Modal.close()">إلغاء</button>
+      </div>
+    `);
+  },
+
+  saveSalary(coachId) {
+    const amount = parseFloat(document.getElementById('salAmount').value);
+    if (!amount || amount <= 0) { Toast.error('أدخل مبلغ صحيح'); return; }
+    const salaryPayments = DB.get('salaryPayments') || [];
+    salaryPayments.push({ id: DB.genId(), coachId, date: DB.fmtDate(new Date(document.getElementById('salDate').value)), amount, notes: document.getElementById('salNotes').value.trim() });
+    DB.set('salaryPayments', salaryPayments);
+    Toast.success('تم صرف الراتب بنجاح');
+    Modal.close();
+    Coaches.render();
+  }
+};
+
+// ========== EXPENSES ==========
+const Expenses = {
+  render() {
+    const expenses = (DB.get('expenses') || []).sort((a,b) => DB.parseDate(b.date) - DB.parseDate(a.date));
+    const cm = DB.currentMonth();
+    const monthTotal = expenses.filter(e => DB.getMonth(e.date) === cm).reduce((s,e) => s + (e.amount||0), 0);
+    const categories = ['مرتبات', 'معدات', 'إيجار', 'متفرقات'];
+
+    let html = `
+    <div class="stats-grid">
+      <div class="stat-card danger">
+        <div class="stat-icon red"><i class="fas fa-receipt"></i></div>
+        <div class="stat-value">${DB.fmtMoney(monthTotal)}</div>
+        <div class="stat-label">إجمالي مصروفات الشهر</div>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <button class="btn btn-primary" onclick="Expenses.showForm()"><i class="fas fa-plus"></i> إضافة مصروف</button>
+    </div>
+    <div class="table-container"><div class="table-responsive"><table>
+      <thead><tr><th>التاريخ</th><th>الفئة</th><th>المبلغ</th><th>ملاحظات</th><th>إجراءات</th></tr></thead><tbody>`;
+    if (expenses.length === 0) {
+      html += `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-receipt"></i><p>لا توجد مصروفات</p></div></td></tr>`;
+    }
+    expenses.forEach(e => {
+      html += `<tr>
+        <td>${e.date}</td>
+        <td><span class="badge-status badge-warning">${e.category}</span></td>
+        <td class="debt-amount">${DB.fmtMoney(e.amount)} ج</td>
+        <td>${e.notes||'-'}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="Expenses.deleteExpense('${e.id}')"><i class="fas fa-trash"></i></button></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+    document.getElementById('page-expenses').innerHTML = html;
+  },
+
+  showForm() {
+    const categories = ['مرتبات', 'معدات', 'إيجار', 'متفرقات'];
+    Modal.open(`
+      <div class="modal-header"><h3><i class="fas fa-receipt" style="color:var(--danger)"></i> إضافة مصروف</h3><button class="modal-close" onclick="Modal.close()"><i class="fas fa-times"></i></button></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group"><label>المبلغ *</label><input id="expAmount" type="number" placeholder="0"></div>
+          <div class="form-group"><label>التاريخ</label><input id="expDate" type="date" value="${DB.todayISO()}"></div>
+        </div>
+        <div class="form-group"><label>الفئة *</label><select id="expCategory">${categories.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>
+        <div class="form-group"><label>ملاحظات</label><textarea id="expNotes" rows="2"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" onclick="Expenses.save()"><i class="fas fa-save"></i> حفظ</button>
+        <button class="btn btn-outline" onclick="Modal.close()">إلغاء</button>
+      </div>
+    `);
+  },
+
+  save() {
+    const amount = parseFloat(document.getElementById('expAmount').value);
+    if (!amount || amount <= 0) { Toast.error('أدخل مبلغ صحيح'); return; }
+    const expenses = DB.get('expenses') || [];
+    expenses.push({
+      id: DB.genId(),
+      date: DB.fmtDate(new Date(document.getElementById('expDate').value)),
+      category: document.getElementById('expCategory').value,
+      amount,
+      notes: document.getElementById('expNotes').value.trim()
+    });
+    DB.set('expenses', expenses);
+    Toast.success('تم إضافة المصروف');
+    Modal.close();
+    Expenses.render();
+  },
+
+  deleteExpense(id) {
+    Modal.confirm('هل أنت متأكد من حذف هذا المصروف؟', () => {
+      const expenses = (DB.get('expenses') || []).filter(e => e.id !== id);
+      DB.set('expenses', expenses);
+      Toast.success('تم الحذف');
+      Expenses.render();
+    });
+  }
+};
+
+// ========== REPORTS ==========
+const Reports = {
+  tab: 'daily',
+
+  render() {
+    const players = App.getMyPlayers();
+    const activePlayers = players.filter(p => p.status === 'active');
+    const allPayments = DB.get('payments') || [];
+    const allAttendance = DB.get('attendance') || [];
+    const allExpenses = DB.get('expenses') || [];
+    const coaches = DB.get('coaches') || [];
+    const salaryPayments = DB.get('salaryPayments') || [];
+    const advances = DB.get('advances') || [];
+    const today = DB.today();
+    const cm = DB.currentMonth();
+    const now = new Date();
+
+    let html = `
+    <div class="tabs">
+      <button class="tab-btn ${Reports.tab==='daily'?'active':''}" onclick="Reports.tab='daily';Reports.render()">يومي</button>
+      <button class="tab-btn ${Reports.tab==='weekly'?'active':''}" onclick="Reports.tab='weekly';Reports.render()">أسبوعي</button>
+      <button class="tab-btn ${Reports.tab==='monthly'?'active':''}" onclick="Reports.tab='monthly';Reports.render()">شهري</button>
+    </div>
+    <div class="filter-bar">
+      <button class="btn btn-primary" onclick="Reports.exportPDF()"><i class="fas fa-file-pdf"></i> تحميل PDF</button>
+      <button class="btn btn-success" onclick="Reports.exportExcel()"><i class="fas fa-file-excel"></i> تحميل Excel</button>
+    </div>`;
+
+    if (Reports.tab === 'daily') {
+      const todayAtt = allAttendance.filter(a => a.date === today);
+      const present = todayAtt.filter(a => a.status === 'present').length;
+      const absent = todayAtt.filter(a => a.status === 'absent').length;
+      const late = todayAtt.filter(a => a.status === 'late').length;
+      const todayPayments = allPayments.filter(p => p.date === today);
+      const todayTotal = todayPayments.reduce((s,p) => s + p.amount, 0);
+
+      html += `
+      <h4 style="margin-bottom:16px">📊 التقرير اليومي - ${today}</h4>
+      <div class="stats-grid">
+        <div class="stat-card success"><div class="stat-icon green"><i class="fas fa-user-check"></i></div><div class="stat-value">${present}</div><div class="stat-label">حاضر</div></div>
+        <div class="stat-card danger"><div class="stat-icon red"><i class="fas fa-user-times"></i></div><div class="stat-value">${absent}</div><div class="stat-label">غائب</div></div>
+        <div class="stat-card"><div class="stat-icon gold"><i class="fas fa-clock"></i></div><div class="stat-value">${late}</div><div class="stat-label">متأخر</div></div>
+        <div class="stat-card accent"><div class="stat-icon gold"><i class="fas fa-money-bill-wave"></i></div><div class="stat-value">${DB.fmtMoney(todayTotal)}</div><div class="stat-label">محصّلات اليوم</div></div>
+      </div>`;
+
+      // Per-group attendance breakdown
+      const groupsToday = [...new Set(todayAtt.map(a => a.group))];
+      if (groupsToday.length > 0) {
+        html += `<div class="table-container"><div class="table-header"><h4>تفصيل الحضور حسب المجموعة</h4></div><div class="table-responsive"><table>
+          <thead><tr><th>المجموعة</th><th>حاضر</th><th>غائب</th><th>متأخر</th></tr></thead><tbody>`;
+        groupsToday.forEach(g => {
+          const gAtt = todayAtt.filter(a => a.group === g);
+          html += `<tr><td style="font-weight:600">${g}</td>
+            <td class="paid-amount">${gAtt.filter(a=>a.status==='present').length}</td>
+            <td class="debt-amount">${gAtt.filter(a=>a.status==='absent').length}</td>
+            <td>${gAtt.filter(a=>a.status==='late').length}</td></tr>`;
+        });
+        html += `</tbody></table></div></div>`;
+      }
+
+    } else if (Reports.tab === 'weekly') {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekAtt = allAttendance.filter(a => DB.parseDate(a.date) >= weekAgo);
+      const weekPayments = allPayments.filter(p => DB.parseDate(p.date) >= weekAgo);
+      const weekRevenue = weekPayments.reduce((s,p) => s + p.amount, 0);
+      const weekNewPlayers = players.filter(p => DB.parseDate(p.regDate) >= weekAgo).length;
+      const totalWeekAtt = weekAtt.length || 1;
+      const weekPresentPct = Math.round((weekAtt.filter(a=>a.status==='present').length / totalWeekAtt) * 100);
+
+      html += `
+      <h4 style="margin-bottom:16px">📊 التقرير الأسبوعي</h4>
+      <div class="stats-grid">
+        <div class="stat-card success"><div class="stat-icon green"><i class="fas fa-percentage"></i></div><div class="stat-value">${weekPresentPct}%</div><div class="stat-label">نسبة الحضور الأسبوعي</div></div>
+        <div class="stat-card accent"><div class="stat-icon gold"><i class="fas fa-money-bill-wave"></i></div><div class="stat-value">${DB.fmtMoney(weekRevenue)}</div><div class="stat-label">إيرادات الأسبوع</div></div>
+        <div class="stat-card info"><div class="stat-icon blue"><i class="fas fa-user-plus"></i></div><div class="stat-value">${weekNewPlayers}</div><div class="stat-label">لاعبون جدد</div></div>
+        <div class="stat-card danger"><div class="stat-icon red"><i class="fas fa-exclamation-circle"></i></div><div class="stat-value">${DB.fmtMoney(activePlayers.filter(p=>p.paymentType==='monthly').reduce((s,p)=>{const paid=allPayments.filter(x=>x.playerId===p.id&&DB.getMonth(x.date)===cm).reduce((ss,x)=>ss+x.amount,0);return s+Math.max(0,(p.monthlyFee||0)-paid);},0))}</div><div class="stat-label">المديونية المعلقة</div></div>
+      </div>`;
+
+      // Weekly per-group attendance
+      const groups = [...new Set(weekAtt.map(a => a.group))];
+      if (groups.length > 0) {
+        html += `<div class="table-container"><div class="table-header"><h4>نسبة الحضور الأسبوعي حسب المجموعة</h4></div><div class="table-responsive"><table>
+          <thead><tr><th>المجموعة</th><th>حاضر</th><th>غائب</th><th>متأخر</th><th>نسبة الحضور</th></tr></thead><tbody>`;
+        groups.forEach(g => {
+          const gAtt = weekAtt.filter(a => a.group === g);
+          const pres = gAtt.filter(a=>a.status==='present').length;
+          const pct = Math.round((pres / (gAtt.length||1)) * 100);
+          html += `<tr><td style="font-weight:600">${g}</td>
+            <td>${pres}</td><td>${gAtt.filter(a=>a.status==='absent').length}</td>
+            <td>${gAtt.filter(a=>a.status==='late').length}</td>
+            <td><span class="badge-status ${pct>=70?'badge-active':'badge-warning'}">${pct}%</span></td></tr>`;
+        });
+        html += `</tbody></table></div></div>`;
+      }
+
+    } else {
+      // Monthly
+      const monthPayments = allPayments.filter(p => DB.getMonth(p.date) === cm);
+      const totalRevenue = monthPayments.reduce((s,p) => s + p.amount, 0);
+      const expectedRevenue = activePlayers.filter(p => p.paymentType === 'monthly').reduce((s,p) => s + (p.monthlyFee||0), 0);
+      const monthExpenses = allExpenses.filter(e => DB.getMonth(e.date) === cm).reduce((s,e) => s + e.amount, 0);
+      const monthSalaryPaid = salaryPayments.filter(s => DB.getMonth(s.date) === cm).reduce((s,p) => s + p.amount, 0);
+      const totalCoachSalaries = coaches.reduce((s,c) => s + (c.salary||0), 0);
+      const netProfit = totalRevenue - monthExpenses - monthSalaryPaid;
+
+      const monthAtt = allAttendance.filter(a => DB.getMonth(a.date) === cm);
+      const presentPct = monthAtt.length ? Math.round((monthAtt.filter(a=>a.status==='present').length / monthAtt.length) * 100) : 0;
+
+      html += `
+      <h4 style="margin-bottom:16px">📊 التقرير الشهري - ${now.toLocaleDateString('ar-EG',{month:'long',year:'numeric'})}</h4>
+      <div class="stats-grid">
+        <div class="stat-card accent"><div class="stat-icon gold"><i class="fas fa-coins"></i></div><div class="stat-value">${DB.fmtMoney(expectedRevenue)}</div><div class="stat-label">الإيراد المتوقع</div></div>
+        <div class="stat-card success"><div class="stat-icon green"><i class="fas fa-hand-holding-usd"></i></div><div class="stat-value">${DB.fmtMoney(totalRevenue)}</div><div class="stat-label">الإيراد الفعلي</div></div>
+        <div class="stat-card danger"><div class="stat-icon red"><i class="fas fa-receipt"></i></div><div class="stat-value">${DB.fmtMoney(monthExpenses)}</div><div class="stat-label">المصروفات</div></div>
+        <div class="stat-card info"><div class="stat-icon blue"><i class="fas fa-chalkboard-teacher"></i></div><div class="stat-value">${DB.fmtMoney(monthSalaryPaid)}/${DB.fmtMoney(totalCoachSalaries)}</div><div class="stat-label">الرواتب (المصروف/المستحق)</div></div>
+        <div class="stat-card ${netProfit>=0?'success':'danger'}"><div class="stat-icon ${netProfit>=0?'green':'red'}"><i class="fas fa-chart-line"></i></div><div class="stat-value">${DB.fmtMoney(netProfit)}</div><div class="stat-label">صافي الربح</div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-percentage"></i></div><div class="stat-value">${presentPct}%</div><div class="stat-label">نسبة الحضور الشهري</div></div>
+      </div>`;
+
+      // Group revenue breakdown
+      const groupRevenue = {};
+      GROUPS.forEach(g => { groupRevenue[g] = 0; });
+      monthPayments.forEach(pay => {
+        const player = players.find(p => p.id === pay.playerId);
+        if (player) groupRevenue[player.group] = (groupRevenue[player.group]||0) + pay.amount;
+      });
+      const topGroups = Object.entries(groupRevenue).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+      if (topGroups.length > 0) {
+        html += `<div class="table-container"><div class="table-header"><h4>الإيرادات حسب المجموعة</h4></div><div class="table-responsive"><table>
+          <thead><tr><th>المجموعة</th><th>الإيراد</th><th>عدد اللاعبين</th></tr></thead><tbody>`;
+        topGroups.forEach(([g, rev]) => {
+          const count = activePlayers.filter(p => p.group === g).length;
+          html += `<tr><td style="font-weight:600">${g}</td><td class="paid-amount">${DB.fmtMoney(rev)} ج</td><td>${count}</td></tr>`;
+        });
+        html += `</tbody></table></div></div>`;
+      }
+
+      // Player changes
+      const joined = players.filter(p => DB.getMonth(p.regDate) === cm).length;
+      const left = players.filter(p => p.status === 'inactive').length;
+      html += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
+        <div style="flex:1;min-width:150px;background:white;padding:16px;border-radius:var(--radius);box-shadow:var(--shadow);text-align:center">
+          <div style="font-size:1.5rem;font-weight:800;color:var(--success)">${joined}</div><div style="font-size:0.8rem;color:var(--text-light)">لاعبون انضموا هذا الشهر</div>
+        </div>
+        <div style="flex:1;min-width:150px;background:white;padding:16px;border-radius:var(--radius);box-shadow:var(--shadow);text-align:center">
+          <div style="font-size:1.5rem;font-weight:800;color:var(--danger)">${left}</div><div style="font-size:0.8rem;color:var(--text-light)">لاعبون غير نشطين</div>
+        </div>
+      </div>`;
+    }
+
+    document.getElementById('page-reports').innerHTML = html;
+  },
+
+  getReportData() {
+    const players = App.getMyPlayers();
+    const activePlayers = players.filter(p => p.status === 'active');
+    const allPayments = DB.get('payments') || [];
+    const allAttendance = DB.get('attendance') || [];
+    const allExpenses = DB.get('expenses') || [];
+    const coaches = DB.get('coaches') || [];
+    const salaryPayments = DB.get('salaryPayments') || [];
+    const cm = DB.currentMonth();
+    const now = new Date();
+    const today = DB.today();
+
+    if (Reports.tab === 'daily') {
+      const todayAtt = allAttendance.filter(a => a.date === today);
+      const todayPayments = allPayments.filter(p => p.date === today);
+      return {
+        title: 'التقرير اليومي - ' + today,
+        rows: [
+          ['البند', 'القيمة'],
+          ['عدد الحاضرين', todayAtt.filter(a=>a.status==='present').length],
+          ['عدد الغائبين', todayAtt.filter(a=>a.status==='absent').length],
+          ['عدد المتأخرين', todayAtt.filter(a=>a.status==='late').length],
+          ['محصّلات اليوم', todayPayments.reduce((s,p)=>s+p.amount,0) + ' ج']
+        ]
+      };
+    } else if (Reports.tab === 'weekly') {
+      const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
+      const weekAtt = allAttendance.filter(a => DB.parseDate(a.date) >= weekAgo);
+      const weekPayments = allPayments.filter(p => DB.parseDate(p.date) >= weekAgo);
+      return {
+        title: 'التقرير الأسبوعي',
+        rows: [
+          ['البند', 'القيمة'],
+          ['نسبة الحضور', Math.round((weekAtt.filter(a=>a.status==='present').length/(weekAtt.length||1))*100)+'%'],
+          ['إيرادات الأسبوع', weekPayments.reduce((s,p)=>s+p.amount,0)+' ج'],
+          ['لاعبون جدد', players.filter(p=>DB.parseDate(p.regDate)>=weekAgo).length]
+        ]
+      };
+    } else {
+      const monthPayments = allPayments.filter(p => DB.getMonth(p.date) === cm);
+      const totalRevenue = monthPayments.reduce((s,p)=>s+p.amount,0);
+      const expectedRevenue = activePlayers.filter(p=>p.paymentType==='monthly').reduce((s,p)=>s+(p.monthlyFee||0),0);
+      const monthExpenses = allExpenses.filter(e=>DB.getMonth(e.date)===cm).reduce((s,e)=>s+e.amount,0);
+      const monthSalaryPaid = salaryPayments.filter(s=>DB.getMonth(s.date)===cm).reduce((s,p)=>s+p.amount,0);
+      return {
+        title: 'التقرير الشهري - ' + now.toLocaleDateString('ar-EG',{month:'long',year:'numeric'}),
+        rows: [
+          ['البند', 'القيمة'],
+          ['الإيراد المتوقع', expectedRevenue+' ج'],
+          ['الإيراد الفعلي', totalRevenue+' ج'],
+          ['المصروفات', monthExpenses+' ج'],
+          ['الرواتب المصروفة', monthSalaryPaid+' ج'],
+          ['صافي الربح', (totalRevenue-monthExpenses-monthSalaryPaid)+' ج'],
+          ['عدد اللاعبين النشطين', activePlayers.length]
+        ]
+      };
+    }
+  },
+
+  exportPDF() {
+    try {
+      const data = Reports.getReportData();
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFillColor(27, 94, 32);
+      doc.rect(0, 0, 210, 30, 'F');
+      doc.setTextColor(255, 215, 0);
+      doc.setFontSize(16);
+      doc.text('Green Hill Football Academy - Report', 105, 12, { align: 'center' });
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text(data.title, 105, 22, { align: 'center' });
+
+      doc.setTextColor(0, 0, 0);
+      let y = 45;
+      doc.setFontSize(10);
+
+      // Table
+      const colW = [120, 60];
+      data.rows.forEach((row, idx) => {
+        if (idx === 0) {
+          doc.setFillColor(240, 240, 240);
+          doc.rect(20, y - 5, 170, 8, 'F');
+          doc.setFont(undefined, 'bold');
+        } else {
+          doc.setFont(undefined, 'normal');
+        }
+        doc.text(String(row[0]), 25, y);
+        doc.text(String(row[1]), 145, y);
+        y += 10;
+      });
+
+      doc.setFontSize(8);
+      doc.setTextColor(150,150,150);
+      doc.text('Generated by Green Hill Academy System', 105, 280, { align: 'center' });
+
+      doc.save(`Report_${Reports.tab}_${DB.todayISO()}.pdf`);
+      Toast.success('تم تحميل التقرير PDF');
+    } catch(e) {
+      Toast.error('خطأ في إنشاء PDF: ' + e.message);
+    }
+  },
+
+  exportExcel() {
+    try {
+      const data = Reports.getReportData();
+      const ws = XLSX.utils.aoa_to_sheet(data.rows);
+      const wb = XLSX.utils.book_new();
+      const safeTitle = data.title.replace(/[\[\]\*\?\/\\:]/g, '-').substring(0, 31);
+      XLSX.utils.book_append_sheet(wb, ws, safeTitle);
+      XLSX.writeFile(wb, `Report_${Reports.tab}_${DB.todayISO()}.xlsx`);
+      Toast.success('تم تحميل التقرير Excel');
+    } catch(e) {
+      Toast.error('خطأ في إنشاء Excel: ' + e.message);
+    }
+  }
+};
+
+// ========== HANDLE KEYBOARD ==========
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    Modal.close();
+  }
+  if (e.key === 'Enter' && document.getElementById('loginPage').style.display !== 'none') {
+    App.login();
+  }
+});
+
+// ========== INIT ==========
+window.addEventListener('DOMContentLoaded', () => {
+  App.init();
+});
+</script>
+</body>
+</html>
