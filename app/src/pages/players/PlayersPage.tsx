@@ -43,12 +43,13 @@ export default function PlayersPage() {
     full_name: string; phone: string; parent_phone: string; date_of_birth: string;
     group_id: string; branch_id: string;
     fee_amount: string; notes: string; status: 'active' | 'inactive' | 'suspended';
-    payment_type: string; photo_url: string; birth_year: string;
+    payment_type: string; photo_url: string; birth_year: string; registration_date: string;
   }>({
     full_name: '', phone: '', parent_phone: '', date_of_birth: '',
     group_id: '', branch_id: '',
     fee_amount: '', notes: '', status: 'active',
     payment_type: 'monthly', photo_url: '', birth_year: '2009',
+    registration_date: new Date().toISOString().split('T')[0],
   });
 
   const loadGroups = useCallback(async () => {
@@ -133,6 +134,7 @@ export default function PlayersPage() {
       group_id: '', branch_id: branchFilter || '',
       fee_amount: '', notes: '', status: 'active',
       payment_type: 'monthly', photo_url: '', birth_year: '2009',
+      registration_date: new Date().toISOString().split('T')[0],
     });
     setShowForm(true);
   }
@@ -152,6 +154,7 @@ export default function PlayersPage() {
       payment_type: player.payment_type || 'monthly',
       photo_url: player.photo_url || '',
       birth_year: player.date_of_birth ? player.date_of_birth.substring(0, 4) : '2009',
+      registration_date: player.registration_date || new Date().toISOString().split('T')[0],
     });
     setShowForm(true);
   }
@@ -176,6 +179,7 @@ export default function PlayersPage() {
       status: form.status,
       payment_type: form.payment_type,
       photo_url: form.photo_url || null,
+      registration_date: form.registration_date || new Date().toISOString().split('T')[0],
     };
 
     if (editingPlayer) {
@@ -352,7 +356,7 @@ export default function PlayersPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-slate-500 font-tabular text-sm font-medium">
-                      {p.date_of_birth ? `فئة ${p.date_of_birth.substring(0,4)}` : '—'}
+                      {p.date_of_birth ? `${new Date().getFullYear() - parseInt(p.date_of_birth.substring(0,4))} سنة (مواليد ${p.date_of_birth.substring(0,4)})` : '—'}
                     </td>
                     <td className="px-6 py-4 text-slate-500 font-tabular text-sm font-medium">{formatDate(p.registration_date)}</td>
                     <td className="px-6 py-4 font-bold text-red-600 font-tabular text-left">{formatMoney(p.fee_amount)}</td>
@@ -471,13 +475,7 @@ export default function PlayersPage() {
               {branches.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
-              <div>
-                <label className="form-label">نوع الاشتراك *</label>
-                <select value={form.payment_type} onChange={(e) => setForm(f => ({ ...f, payment_type: e.target.value }))} className="input-field">
-                  <option value="monthly">شهري</option>
-                  <option value="quarterly">دوري / سنوي (كل 3 شهور)</option>
-                </select>
-              </div>
+
               <div>
                 <label className="form-label">قيمة الاشتراك (ج.م) *</label>
                 <input type="number" value={form.fee_amount} onChange={(e) => setForm(f => ({ ...f, fee_amount: e.target.value }))}
@@ -504,6 +502,11 @@ export default function PlayersPage() {
           <div>
             <label className="form-label">تاريخ الميلاد (اختياري)</label>
             <input type="date" value={form.date_of_birth} onChange={(e) => setForm(f => ({ ...f, date_of_birth: e.target.value }))}
+              className="input-field font-tabular" />
+          </div>
+          <div>
+            <label className="form-label">تاريخ التسجيل والاشتراك *</label>
+            <input type="date" value={form.registration_date} onChange={(e) => setForm(f => ({ ...f, registration_date: e.target.value }))}
               className="input-field font-tabular" />
           </div>
           <div>
