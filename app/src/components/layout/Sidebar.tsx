@@ -54,7 +54,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       )}
 
       <aside 
-        className={`bg-white border-l border-slate-200 w-[260px] flex-shrink-0 flex flex-col transition-all duration-300 z-40 
+        className={`bg-white border-l border-slate-200 w-[260px] flex-shrink-0 flex flex-col transition-all duration-300 z-[100] 
           ${isOpen ? 'fixed inset-y-0 right-0 shadow-2xl' : 'hidden md:flex'}`
         }
       >
