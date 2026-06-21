@@ -1,0 +1,308 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useBranch } from '../../contexts/BranchContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { formatMonth } from '../../lib/utils';
+import { Users, TrendingUp, AlertCircle, Activity } from 'lucide-react';
+import { PageLoading } from '../../components/ui/LoadingSpinner';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+
+interface DashboardStats {
+  activePlayers: number;
+  totalDebt: number;
+  netProfit: number;
+  revenueTrend: any[];
+  recentPlayers: any[];
+}
+
+export default function OwnerDashboard() {
+  const { selectedBranchId } = useBranch();
+  const { profile } = useAuth();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Use real current month dynamically
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [selectedBranchId]);
+
+  async function loadDashboard() {
+    setLoading(true);
+    try {
+      const branchFilter = selectedBranchId ? selectedBranchId : null;
+
+      let playersQuery = supabase.from('players').select('id', { count: 'exact', head: true }).eq('status', 'active');
+      if (branchFilter) {
+        playersQuery = playersQuery.eq('branch_id', branchFilter);
+      }
+
+      const [
+        { count: playersCount },
+        { data: branchData },
+        { data: trendData },
+        { data: recentPlayersData }
+      ] = await Promise.all([
+        playersQuery,
+        supabase.rpc('get_monthly_branch_stats', { p_month: currentMonth }),
+        supabase.rpc('get_revenue_trend', { p_branch_id: branchFilter }),
+        supabase
+          .from('players')
+          .select('id, full_name, branch_id, status, created_at, branches(name)')
+          .order('created_at', { ascending: false })
+          .limit(5)
+      ]);
+
+      let activePlayers = playersCount || 0;
+
+      let branchBreakdown = branchData || [];
+      if (branchFilter) {
+        branchBreakdown = branchBreakdown.filter((b: any) => b.branch_id === branchFilter);
+      }
+
+      const totalNetProfit = branchBreakdown.reduce((sum: number, b: any) => sum + Number(b.net_profit || 0), 0);
+      
+      const { data: debtData } = await supabase.rpc('get_total_active_debt', { p_branch_id: branchFilter });
+      const totalDebt = debtData && debtData.length > 0 ? Number(debtData[0].total_debt) : 0;
+
+      let recent = recentPlayersData || [];
+      if (branchFilter) {
+        recent = recent.filter(p => p.branch_id === branchFilter);
+      }
+
+      setStats({
+        activePlayers,
+        totalDebt,
+        netProfit: totalNetProfit,
+        revenueTrend: trendData || [],
+        recentPlayers: recent,
+      });
+    } catch (err) {
+      console.error('Dashboard load error:', err);
+    }
+    setLoading(false);
+  }
+
+  if (loading || !stats) return <PageLoading />;
+
+  const chartData = transformTrendData(stats.revenueTrend);
+
+  return (
+    <div className="space-y-8 animate-fade-in pb-12">
+      
+      {/* Header Section */}
+      <div className="mb-2">
+        <h2 className="text-2xl font-bold text-slate-900 mb-1 font-arabic">نظرة عامة على أداء الأكاديمية</h2>
+        <p className="text-slate-500 font-medium text-sm font-arabic">التحليل المالي والإحصائيات الخاصة باللاعبين.</p>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* Active Players */}
+        <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">اللاعبين النشطين</span>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <Users size={20} strokeWidth={2} />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
+              {stats.activePlayers.toLocaleString('en-US')}
+            </h3>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي المشتركين حالياً</span>
+          </div>
+        </div>
+
+        {profile?.role === 'owner' && (
+          <>
+            {/* Net Profit */}
+            <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-4">
+                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">صافي الربح ({formatMonth(currentMonth)})</span>
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <TrendingUp size={20} strokeWidth={2} />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
+                  {stats.netProfit.toLocaleString('en-US')}
+                </h3>
+                <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
+              </div>
+              <div className="mt-3 flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-400 font-arabic">بعد خصم إجمالي المصروفات</span>
+              </div>
+            </div>
+
+            {/* Open Dues */}
+            <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-4">
+                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">مديونيات مفتوحة</span>
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <AlertCircle size={20} strokeWidth={2} />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
+                  {stats.totalDebt.toLocaleString('en-US')}
+                </h3>
+                <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
+              </div>
+              <div className="mt-3 flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-400 font-arabic">مبالغ مستحقة لم يتم سدادها</span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Table: Recent Activity */}
+        <div className="bg-white rounded-xl flex flex-col overflow-hidden shadow-sm border border-slate-200">
+          <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-700">
+              <Activity size={16} />
+            </div>
+            <h4 className="text-lg font-bold text-slate-800 font-arabic">أحدث التسجيلات</h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-right">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4 text-slate-500 font-bold text-sm font-arabic">اسم اللاعب</th>
+                  <th className="px-6 py-4 text-slate-500 font-bold text-sm font-arabic">الفرع</th>
+                  <th className="px-6 py-4 text-slate-500 font-bold text-sm text-center font-arabic">تاريخ التسجيل</th>
+                  <th className="px-6 py-4 text-slate-500 font-bold text-sm text-center font-arabic">الحالة</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {stats.recentPlayers.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-16 text-slate-400 font-bold text-sm font-arabic">
+                      <div className="flex flex-col items-center gap-2">
+                        <Users size={32} className="text-slate-300" />
+                        <span>لا يوجد لاعبين مسجلين بعد. ابدأ بإضافة أول لاعب.</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  stats.recentPlayers.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-bold text-slate-800 font-arabic flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">
+                          {p.full_name.charAt(0)}
+                        </div>
+                        {p.full_name}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold border border-slate-200 font-arabic">
+                          {p.branches?.name || '—'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center font-tabular text-slate-500 text-sm font-bold">
+                        {new Date(p.created_at).toLocaleDateString('en-GB')}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          p.status === 'active' 
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
+                          {p.status === 'active' ? 'نشط' : 'موقوف'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Chart: Revenue Trend (Owner Only) */}
+        {profile?.role === 'owner' && (
+          <div className="bg-white rounded-xl flex flex-col overflow-hidden shadow-sm border border-slate-200">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-700">
+                <TrendingUp size={16} />
+              </div>
+              <h4 className="text-lg font-bold text-slate-800 font-arabic">نمو الإيرادات (6 أشهر)</h4>
+            </div>
+            <div className="p-6 flex-1 min-h-[300px]">
+              {chartData.length === 0 || chartData.every(d => d.total === 0) ? (
+                <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 font-medium text-sm border-2 border-dashed border-slate-200 rounded-lg p-6 font-arabic text-center">
+                  <TrendingUp size={32} className="text-slate-300 mb-3" strokeWidth={1.5} />
+                  <p>لم يتم تسجيل إيرادات بعد.</p>
+                  <p className="text-slate-400 text-xs mt-1">ستظهر البيانات المالية هنا تلقائياً عند إضافة مدفوعات.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <Tooltip 
+                      formatter={(value: any) => [`${Number(value).toLocaleString('en-US')} ج.م`, 'الإيرادات']}
+                      labelFormatter={(label) => formatMonth(label)}
+                      contentStyle={{ fontFamily: 'inherit', textAlign: 'right', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis 
+                      dataKey="month" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tickFormatter={(val) => {
+                        const [, m] = val.split('-');
+                        const names = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+                        return names[parseInt(m) - 1] || val;
+                      }}
+                      tick={{ fontSize: 13, fill: '#64748b', fontFamily: 'var(--font-arabic)', fontWeight: 600 }} 
+                      dy={10}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 13, fill: '#64748b', fontFamily: 'var(--font-tabular)', fontWeight: 600 }} 
+                      tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
+                      dx={-10}
+                    />
+                    <Area type="monotone" dataKey="total" stroke="#10b981" strokeWidth={3} fill="url(#colorRevenue)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+function transformTrendData(raw: any[]) {
+  if (!raw || raw.length === 0) return [];
+  
+  const monthMap = new Map<string, Record<string, number>>();
+
+  for (const item of raw) {
+    if (!monthMap.has(item.month)) {
+      monthMap.set(item.month, { month: item.month as unknown as number } as Record<string, number>);
+    }
+    const entry = monthMap.get(item.month)!;
+    // Safely parse revenue and add to total
+    const rev = Number(item.revenue || 0);
+    entry.total = (entry.total || 0) + rev;
+  }
+
+  return Array.from(monthMap.values()).sort((a, b) => String(a.month).localeCompare(String(b.month)));
+}
