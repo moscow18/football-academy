@@ -77,7 +77,7 @@ function AppRoutes() {
         <Route path="attendance" element={<AttendancePage />} />
 
         {/* Financial & Management: Owner, Admin only */}
-        <Route path="payments" element={<RequireAuth roles={['owner']}><PaymentsPage /></RequireAuth>} />
+        <Route path="payments" element={<RequireAuth roles={['owner', 'admin']}><PaymentsPage /></RequireAuth>} />
         <Route path="debts" element={<RequireAuth roles={['owner']}><DebtsPage /></RequireAuth>} />
         <Route path="coaches" element={<RequireAuth roles={['owner', 'admin']}><CoachesPage /></RequireAuth>} />
         <Route path="groups" element={<RequireAuth roles={['owner', 'admin']}><GroupsPage /></RequireAuth>} />

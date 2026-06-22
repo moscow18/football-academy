@@ -239,7 +239,7 @@ export default function PlayerProfile() {
                   <tr key={p.id}>
                     <td className="text-sm">{formatDate(p.payment_date)}</td>
                     <td className="tabular-data font-semibold text-emerald-600">{formatMoney(p.amount)}</td>
-                    <td className="text-sm">{p.method === 'cash' ? 'نقدي' : 'تحويل'}</td>
+                    <td className="text-sm">{p.method === 'cash' ? '💵 نقدي' : '🏦 تحويل'}</td>
                     <td className="text-sm text-slate-500">{p.period_covered || '—'}</td>
                     <td className="text-xs text-slate-400">{p.notes || '—'}</td>
                   </tr>
