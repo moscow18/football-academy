@@ -20,7 +20,7 @@ export default function TopBar({ title, onMenuToggle }: TopBarProps) {
   };
 
   return (
-    <div className="bg-white px-8 py-4 flex items-center justify-between border-b border-slate-200 z-30 h-20 sticky top-0">
+    <div className="bg-white px-4 md:px-8 py-4 flex items-center justify-between border-b border-slate-200 z-30 h-20 sticky top-0">
       
       {/* Right: Title & Mobile Toggle */}
       <div className="flex items-center gap-4">
@@ -40,15 +40,15 @@ export default function TopBar({ title, onMenuToggle }: TopBarProps) {
       </div>
 
       {/* Left: Actions & Profile */}
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-3 md:gap-5">
         
         {/* Branch Selector (if Owner) */}
         {isOwner && (
-          <div className="relative hidden md:block border-r border-slate-200 pr-5">
+          <div className="relative border-r border-slate-200 pr-3 md:pr-5">
             <select
               value={selectedBranchId || ''}
               onChange={(e) => setBranchId(e.target.value || null)}
-              className="appearance-none pr-8 pl-4 py-2 rounded-lg border-none bg-transparent font-arabic text-sm font-bold text-slate-600 cursor-pointer focus:outline-none"
+              className="appearance-none pr-6 pl-1 md:pr-8 md:pl-4 py-2 rounded-lg border-none bg-transparent font-arabic text-xs md:text-sm font-bold text-slate-600 cursor-pointer focus:outline-none max-w-[90px] md:max-w-none truncate"
             >
               <option value="">كل الفروع</option>
               {branches.map((b) => (
@@ -58,12 +58,12 @@ export default function TopBar({ title, onMenuToggle }: TopBarProps) {
               ))}
             </select>
             <span className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-              <MapPin size={16} />
+              <MapPin size={14} className="md:w-4 md:h-4" />
             </span>
           </div>
         )}
 
-        <div className="flex items-center gap-3 border-r border-slate-200 pr-5 ml-2">
+        <div className="flex items-center gap-2 md:gap-3 border-r border-slate-200 pr-3 md:pr-5 ml-1 md:ml-2">
           <div className="text-left hidden sm:block">
             <div className="text-sm font-bold text-slate-800 font-arabic leading-tight">{profile?.full_name || 'المستخدم'}</div>
             <div className="text-[10px] text-slate-500 font-bold font-arabic">{roleLabels[profile?.role || 'coach']}</div>
