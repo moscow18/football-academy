@@ -651,12 +651,19 @@ AS $$
     p.fee_amount,
     p.payment_type,
     p.registration_date,
-    (EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM p.registration_date))::integer AS months_enrolled,
-    -- Total expected: fee_amount (Annual Subscription Fee)
-    p.fee_amount AS total_expected,
+    -- Calculate months enrolled starting from greatest of registration_date or '2026-07-01'
+    ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
+     + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
+     + 1)::integer AS months_enrolled,
+    -- Total expected: fee_amount * months_enrolled (from start billing date)
+    (p.fee_amount * ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
+     + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
+     + 1))::numeric AS total_expected,
     COALESCE(pay.total_paid, 0) AS total_paid,
-    -- Debt = annual fee - paid
-    (p.fee_amount - COALESCE(pay.total_paid, 0)) AS debt
+    -- Debt = total expected - paid
+    (p.fee_amount * ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
+     + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
+     + 1) - COALESCE(pay.total_paid, 0))::numeric AS debt
   FROM players p
   JOIN branches b ON b.id = p.branch_id
   LEFT JOIN groups g ON g.id = p.group_id
@@ -667,7 +674,9 @@ AS $$
   ) pay ON pay.player_id = p.id
   WHERE p.status = 'active'
     AND (p_branch_id IS NULL OR p.branch_id = p_branch_id)
-    AND (p.fee_amount - COALESCE(pay.total_paid, 0)) > 0
+    AND (p.fee_amount * ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
+         + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
+         + 1) - COALESCE(pay.total_paid, 0)) > 0
   ORDER BY debt DESC;
 $$;
 
