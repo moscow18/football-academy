@@ -616,6 +616,8 @@ AS $$
 $$;
 
 -- Debt list: expected fees - total paid for each active player
+DROP FUNCTION IF EXISTS rpc_debt_list(uuid);
+
 CREATE OR REPLACE FUNCTION rpc_debt_list(
   p_branch_id uuid DEFAULT NULL
 )
@@ -634,7 +636,9 @@ RETURNS TABLE(
   months_enrolled integer,
   total_expected numeric,
   total_paid numeric,
-  debt numeric
+  debt numeric,
+  last_payment_date date,
+  next_payment_date date
 )
 LANGUAGE sql
 STABLE
@@ -663,12 +667,21 @@ AS $$
     -- Debt = total expected - paid
     (p.fee_amount * ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
      + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
-     + 1) - COALESCE(pay.total_paid, 0))::numeric AS debt
+     + 1) - COALESCE(pay.total_paid, 0))::numeric AS debt,
+    -- Last payment date
+    pay.last_pay_date AS last_payment_date,
+    -- Next payment date (registration_date + months_enrolled months)
+    (p.registration_date + (((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
+     + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
+     + 1) * INTERVAL '1 month'))::date AS next_payment_date
   FROM players p
   JOIN branches b ON b.id = p.branch_id
   LEFT JOIN groups g ON g.id = p.group_id
   LEFT JOIN (
-    SELECT player_id, SUM(amount) AS total_paid
+    SELECT 
+      player_id, 
+      SUM(amount) AS total_paid,
+      MAX(payment_date) AS last_pay_date
     FROM payments
     GROUP BY player_id
   ) pay ON pay.player_id = p.id
