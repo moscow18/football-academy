@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
-import { formatMoney, formatDate } from '../../lib/utils';
+import { formatMoney, formatDate, buildWhatsAppLink } from '../../lib/utils';
 import { Search, Plus, Download, Edit2, Trash2, Users } from 'lucide-react';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
@@ -25,9 +25,12 @@ export default function PlayersPage() {
 
   // Filters
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterGroup, setFilterGroup] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterBirthYear, setFilterBirthYear] = useState('');
+
+  const queryIdRef = useRef(0);
 
   // Modal
   const [showForm, setShowForm] = useState(false);
@@ -37,6 +40,7 @@ export default function PlayersPage() {
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [bulkGroup, setBulkGroup] = useState('');
   const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form state
   const [form, setForm] = useState<{
@@ -60,6 +64,7 @@ export default function PlayersPage() {
   }, [branchFilter]);
 
   const loadPlayers = useCallback(async () => {
+    const queryId = ++queryIdRef.current;
     setLoading(true);
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -71,7 +76,7 @@ export default function PlayersPage() {
       .range(from, to);
 
     if (branchFilter) q = q.eq('branch_id', branchFilter);
-    if (search) q = q.or(`full_name.ilike.%${search}%,player_code.ilike.%${search}%`);
+    if (debouncedSearch) q = q.or(`full_name.ilike.%${debouncedSearch}%,player_code.ilike.%${debouncedSearch}%`);
     if (filterGroup) q = q.eq('group_id', filterGroup);
     if (filterStatus) q = q.eq('status', filterStatus);
     if (filterBirthYear) {
@@ -79,9 +84,12 @@ export default function PlayersPage() {
     }
 
     const { data, count, error } = await q;
+
+    if (queryId !== queryIdRef.current) return;
+
     if (error) {
-      toast('error', 'خطأ في تحميل اللاعبين');
-      console.error(error);
+      toast('error', `خطأ في تحميل اللاعبين: ${error.message || ''}`);
+      console.error('Supabase error loading players:', error);
     } else {
       const mapped = (data || []).map((p: Record<string, unknown>) => ({
         ...p,
@@ -92,11 +100,24 @@ export default function PlayersPage() {
       setTotal(count || 0);
     }
     setLoading(false);
-  }, [page, branchFilter, search, filterGroup, filterStatus, toast]);
+  }, [page, branchFilter, debouncedSearch, filterGroup, filterStatus, filterBirthYear, toast]);
 
   useEffect(() => { loadGroups(); }, [loadGroups]);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   useEffect(() => { loadPlayers(); }, [loadPlayers]);
-  useEffect(() => { setPage(0); setSelectedPlayers([]); }, [search, filterGroup, filterStatus, branchFilter]);
+
+  useEffect(() => { 
+    setPage(0); 
+    setSelectedPlayers([]); 
+  }, [debouncedSearch, filterGroup, filterStatus, filterBirthYear, branchFilter]);
 
   function togglePlayerSelection(id: string) {
     setSelectedPlayers(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
@@ -160,10 +181,14 @@ export default function PlayersPage() {
   }
 
   async function savePlayer() {
+    if (isSaving) return;
     if (!form.full_name || !form.branch_id) {
       toast('error', 'يرجى إدخال اسم اللاعب واختيار الفرع');
       return;
     }
+    
+    setIsSaving(true);
+    try {
     // No password required for adding/editing players
     const dateOfBirth = form.date_of_birth || `${form.birth_year}-01-01`;
 
@@ -190,6 +215,9 @@ export default function PlayersPage() {
       const { error } = await supabase.from('players').insert(payload);
       if (error) { toast('error', 'خطأ في إضافة اللاعب'); return; }
       toast('success', 'تم إضافة اللاعب بنجاح');
+    }
+    } finally {
+      setIsSaving(false);
     }
     setShowForm(false);
     loadPlayers();
@@ -366,7 +394,7 @@ export default function PlayersPage() {
                           const phone = p.parent_phone || p.phone;
                           if (!phone) { toast('error', 'لا يوجد رقم هاتف مسجل للاعب'); return; }
                           const msg = `مرحباً بك في أكاديمية VFC، نذكركم بموعد سداد الاشتراك للاعب ${p.full_name}.`;
-                          window.open(`https://wa.me/2${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+                          window.open(buildWhatsAppLink(phone, msg), '_blank');
                         }} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="إرسال تذكير واتساب">
                           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                         </button>
@@ -453,10 +481,10 @@ export default function PlayersPage() {
       {/* Add/Edit Player Modal */}
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editingPlayer ? 'تعديل لاعب' : 'إضافة لاعب جديد'} size="lg" footer={
         <>
-          <button onClick={savePlayer} className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors cursor-pointer">
-            {editingPlayer ? 'حفظ التعديلات' : 'إضافة اللاعب'}
+          <button onClick={savePlayer} disabled={isSaving} className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors cursor-pointer">
+            {isSaving ? 'جاري الحفظ...' : editingPlayer ? 'حفظ التعديلات' : 'إضافة اللاعب'}
           </button>
-          <button onClick={() => setShowForm(false)} className="px-5 py-2.5 border-2 border-slate-200 rounded-lg font-bold text-sm hover:bg-slate-50 transition-colors cursor-pointer">
+          <button onClick={() => setShowForm(false)} disabled={isSaving} className="px-5 py-2.5 border-2 border-slate-200 rounded-lg font-bold text-sm hover:bg-slate-50 disabled:opacity-50 transition-colors cursor-pointer">
             إلغاء
           </button>
         </>

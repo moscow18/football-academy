@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -24,6 +24,9 @@ export default function PaymentsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [searchPlayer, setSearchPlayer] = useState('');
+  const [debouncedSearchPlayer, setDebouncedSearchPlayer] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const queryIdRef = useRef(0);
 
   // Add payment modal
   const [showForm, setShowForm] = useState(false);
@@ -38,6 +41,7 @@ export default function PaymentsPage() {
   });
 
   const loadPayments = useCallback(async () => {
+    const queryId = ++queryIdRef.current;
     setLoading(true);
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -49,9 +53,11 @@ export default function PaymentsPage() {
       .range(from, to);
 
     if (branchFilter) q = q.eq('branch_id', branchFilter);
-    if (searchPlayer) q = q.or(`players.full_name.ilike.%${searchPlayer}%`);
+    if (debouncedSearchPlayer) q = q.or(`players.full_name.ilike.%${debouncedSearchPlayer}%`);
 
     const { data, count } = await q;
+    if (queryId !== queryIdRef.current) return;
+
     const mapped = (data || []).map((p: Record<string, unknown>) => ({
       ...p,
       player_name: (p.players as Record<string, string>)?.full_name,
@@ -62,7 +68,20 @@ export default function PaymentsPage() {
     setPayments(mapped);
     setTotal(count || 0);
     setLoading(false);
-  }, [page, branchFilter, searchPlayer]);
+  }, [page, branchFilter, debouncedSearchPlayer]);
+
+  // Debounce search player
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchPlayer(searchPlayer);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchPlayer]);
+
+  // Reset page when search or branch changes
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearchPlayer, branchFilter]);
 
   useEffect(() => { loadPayments(); }, [loadPayments]);
 
@@ -80,36 +99,46 @@ export default function PaymentsPage() {
   }, [playerSearch, showForm, branchFilter]);
 
   async function savePayment() {
+    if (isSaving) return;
     if (!form.player_id || !form.amount) {
       toast('error', 'يرجى اختيار لاعب وإدخال المبلغ');
       return;
     }
     if (!window.confirm('هل أنت متأكد من تسجيل هذه الدفعة؟')) return;
 
-    const { error } = await supabase.from('payments').insert({
-      player_id: form.player_id,
-      branch_id: form.branch_id || branchFilter,
-      amount: Number(form.amount),
-      method: form.method,
-      period_covered: form.period_covered,
-      notes: form.notes || null,
-      recorded_by: profile?.id,
-    });
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('payments').insert({
+        player_id: form.player_id,
+        branch_id: form.branch_id || branchFilter,
+        amount: Number(form.amount),
+        method: form.method,
+        period_covered: form.period_covered,
+        notes: form.notes || null,
+        recorded_by: profile?.id,
+      });
 
-    if (error) { toast('error', 'خطأ في تسجيل الدفعة'); return; }
+      if (error) { 
+        toast('error', 'خطأ في تسجيل الدفعة'); 
+        setIsSaving(false);
+        return; 
+      }
 
-    // Also create an invoice
-    await supabase.from('invoices').insert({
-      player_id: form.player_id,
-      branch_id: form.branch_id || branchFilter,
-      amount: Number(form.amount),
-    });
+      // Also create an invoice
+      await supabase.from('invoices').insert({
+        player_id: form.player_id,
+        branch_id: form.branch_id || branchFilter,
+        amount: Number(form.amount),
+      });
 
-    toast('success', 'تم تسجيل الدفعة بنجاح');
-    setShowForm(false);
-    setForm({ player_id: '', branch_id: '', amount: '', method: 'cash', period_covered: getCurrentMonth(), notes: '' });
-    setPlayerSearch('');
-    loadPayments();
+      toast('success', 'تم تسجيل الدفعة بنجاح');
+      setShowForm(false);
+      setForm({ player_id: '', branch_id: '', amount: '', method: 'cash', period_covered: getCurrentMonth(), notes: '' });
+      setPlayerSearch('');
+      loadPayments();
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function printReceipt(p: Payment) {
@@ -150,7 +179,7 @@ export default function PaymentsPage() {
           <input
             type="text"
             value={searchPlayer}
-            onChange={(e) => { setSearchPlayer(e.target.value); setPage(0); }}
+            onChange={(e) => setSearchPlayer(e.target.value)}
             placeholder="بحث بالاسم..."
             className="w-full py-2 px-4 border-2 border-slate-200 rounded-lg font-[Cairo] text-sm bg-white focus:border-emerald-500 focus:outline-none"
           />
@@ -225,8 +254,10 @@ export default function PaymentsPage() {
       {/* Add Payment Modal */}
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="تسجيل دفعة جديدة" footer={
         <>
-          <button onClick={savePayment} className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors cursor-pointer">تسجيل الدفعة</button>
-          <button onClick={() => setShowForm(false)} className="px-5 py-2.5 border-2 border-slate-200 rounded-lg font-bold text-sm cursor-pointer">إلغاء</button>
+          <button onClick={savePayment} disabled={isSaving} className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors disabled:opacity-50 cursor-pointer">
+            {isSaving ? 'جاري التسجيل...' : 'تسجيل الدفعة'}
+          </button>
+          <button onClick={() => setShowForm(false)} disabled={isSaving} className="px-5 py-2.5 border-2 border-slate-200 rounded-lg font-bold text-sm disabled:opacity-50 cursor-pointer">إلغاء</button>
         </>
       }>
         <div className="space-y-4">

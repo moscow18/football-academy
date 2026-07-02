@@ -14,6 +14,7 @@ export default function UsersPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [newUser, setNewUser] = useState({
     email: '', password: '', name: '', phone: '', role: 'coach', branch_id: ''
   });
@@ -84,12 +85,13 @@ export default function UsersPage() {
   }
 
   async function handleAddUser() {
+    if (isSaving) return;
     if (!newUser.name || !newUser.phone || !newUser.email || !newUser.password) {
       toast('error', 'يرجى إدخال جميع البيانات المطلوبة');
       return;
     }
     
-    setLoading(true);
+    setIsSaving(true);
     
     // Create a secondary client to sign up the new user without logging the current admin out
     const adminAuthClient = createClient(
@@ -105,14 +107,14 @@ export default function UsersPage() {
 
     if (authError) {
       toast('error', authError.message === 'User already registered' ? 'هذا البريد الإلكتروني مسجل بالفعل' : 'حدث خطأ في إنشاء الحساب');
-      setLoading(false);
+      setIsSaving(false);
       return;
     }
 
     const userId = authData.user?.id;
     if (!userId) {
       toast('error', 'حدث خطأ غير معروف');
-      setLoading(false);
+      setIsSaving(false);
       return;
     }
 
@@ -140,6 +142,7 @@ export default function UsersPage() {
 
     setShowForm(false);
     setNewUser({ email: '', password: '', name: '', phone: '', role: 'coach', branch_id: '' });
+    setIsSaving(false);
     loadData();
   }
 
@@ -238,8 +241,10 @@ export default function UsersPage() {
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="إضافة مستخدم جديد" footer={
         <>
-          <button onClick={handleAddUser} className="btn btn-primary px-6">حفظ المستخدم</button>
-          <button onClick={() => setShowForm(false)} className="btn btn-secondary px-6">إلغاء</button>
+          <button onClick={handleAddUser} disabled={isSaving} className="btn btn-primary px-6 disabled:opacity-50">
+            {isSaving ? 'جاري الحفظ...' : 'حفظ المستخدم'}
+          </button>
+          <button onClick={() => setShowForm(false)} disabled={isSaving} className="btn btn-secondary px-6 disabled:opacity-50">إلغاء</button>
         </>
       }>
         <div className="space-y-4">
