@@ -17,6 +17,7 @@ import PlayerProfile from './pages/players/PlayerProfile';
 import AttendancePage from './pages/attendance/AttendancePage';
 import PaymentsPage from './pages/payments/PaymentsPage';
 import DebtsPage from './pages/payments/DebtsPage';
+import PeriodicSubscriptionsPage from './pages/payments/PeriodicSubscriptionsPage';
 import InvoicesPage from './pages/invoices/InvoicesPage';
 import CoachesPage from './pages/coaches/CoachesPage';
 import GroupsPage from './pages/groups/GroupsPage';
@@ -82,6 +83,7 @@ function AppRoutes() {
         {/* Financial & Management: Owner, Admin only */}
         <Route path="payments" element={<RequireAuth roles={['owner', 'admin']}><PaymentsPage /></RequireAuth>} />
         <Route path="debts" element={<RequireAuth roles={['owner']}><DebtsPage /></RequireAuth>} />
+        <Route path="periodic-subscriptions" element={<RequireAuth roles={['owner']}><PeriodicSubscriptionsPage /></RequireAuth>} />
         <Route path="coaches" element={<RequireAuth roles={['owner', 'admin']}><CoachesPage /></RequireAuth>} />
         <Route path="groups" element={<RequireAuth roles={['owner', 'admin']}><GroupsPage /></RequireAuth>} />
         <Route path="kits" element={<RequireAuth roles={['owner', 'admin']}><KitsPage /></RequireAuth>} />

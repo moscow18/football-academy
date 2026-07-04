@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { 
   LayoutDashboard, Users, ClipboardCheck, Wallet, AlertCircle, 
   FileText, GraduationCap, ShoppingBag, TrendingDown, 
-  PieChart, Settings, LogOut
+  PieChart, Settings, LogOut, Trophy
 } from 'lucide-react';
 
 interface NavItem {
@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { path: '/attendance', label: 'الحضور', icon: ClipboardCheck, roles: ['owner', 'admin', 'coach'] },
   { path: '/payments', label: 'المدفوعات', icon: Wallet, roles: ['owner', 'admin'] },
   { path: '/debts', label: 'الاشتراكات والمحصل المالي', icon: AlertCircle, roles: ['owner'] },
+  { path: '/periodic-subscriptions', label: 'الاشتراكات الدورية (الدوري)', icon: Trophy, roles: ['owner'] },
   { path: '/invoices', label: 'الفواتير', icon: FileText, roles: ['owner'] },
   { path: '/coaches', label: 'المدربين', icon: GraduationCap, roles: ['owner', 'admin'] },
   { path: '/groups', label: 'الفرق التدريبية', icon: Users, roles: ['owner', 'admin'] },

@@ -9,6 +9,7 @@ const pageTitles: Record<string, string> = {
   '/attendance': 'تسجيل الحضور',
   '/payments': 'المدفوعات',
   '/debts': 'الاشتراكات والمحصل المالي',
+  '/periodic-subscriptions': 'الاشتراكات الدورية (الدوري)',
   '/invoices': 'الفواتير',
   '/coaches': 'المدربين',
   '/kits': 'الأطقم والمتجر',

@@ -255,6 +255,7 @@ export interface DebtItem {
   group_name: string;
   phone: string | null;
   parent_phone: string | null;
+  date_of_birth: string | null;
   fee_amount: number;
   fee_amount_periodic: number;
   payment_type: string;
