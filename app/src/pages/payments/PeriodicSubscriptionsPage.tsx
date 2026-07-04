@@ -1,22 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { formatMoney, buildWhatsAppLink, debtReminderMessage, renewalReminderMessage, formatDate } from '../../lib/utils';
 import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
-import type { DebtItem } from '../../lib/types';
+import type { DebtItem, Group } from '../../lib/types';
 
 export default function PeriodicSubscriptionsPage() {
   const { branchFilter } = useBranch();
   const [debts, setDebts] = useState<DebtItem[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [birthYearFilter, setBirthYearFilter] = useState('');
+  const [groupFilter, setGroupFilter] = useState('');
 
-  useEffect(() => {
-    loadData();
+  const loadGroups = useCallback(async () => {
+    let q = supabase.from('groups').select('*');
+    if (branchFilter) q = q.eq('branch_id', branchFilter);
+    const { data } = await q.order('name');
+    setGroups(data || []);
   }, [branchFilter]);
 
   async function loadData() {
@@ -28,6 +34,11 @@ export default function PeriodicSubscriptionsPage() {
     setLoading(false);
     setInitialLoading(false);
   }
+
+  useEffect(() => {
+    loadData();
+    loadGroups();
+  }, [branchFilter, loadGroups]);
 
   // Filter only periodic (league) players (payment_type = 'quarterly')
   const leaguePlayers = debts.filter(d => d.payment_type === 'quarterly');
@@ -43,6 +54,7 @@ export default function PeriodicSubscriptionsPage() {
   const filteredData = leaguePlayers.filter(d => {
     if (searchQuery && !d.player_name.includes(searchQuery) && !d.player_code.includes(searchQuery)) return false;
     if (birthYearFilter && d.date_of_birth?.substring(0, 4) !== birthYearFilter) return false;
+    if (groupFilter && d.group_name !== groupFilter) return false;
     return true;
   });
 
@@ -51,6 +63,26 @@ export default function PeriodicSubscriptionsPage() {
   const totalDebt = filteredData.reduce((s, d) => s + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0);
   const totalExpected = filteredData.reduce((s, d) => s + Number(d.total_expected || 0), 0);
   const debtorsCount = filteredData.filter(d => Number(d.debt) > 0).length;
+
+  function exportToExcel() {
+    const wsData = filteredData.map(d => ({
+      'الكود': d.player_code,
+      'الاسم': d.player_name,
+      'المواليد': d.date_of_birth ? d.date_of_birth.substring(0, 4) : '—',
+      'الفرع': d.branch_name,
+      'المجموعة/الفريق': d.group_name || 'بدون مجموعة',
+      'قيمة الاشتراك الدوري': d.fee_amount_periodic,
+      'الأشهر المسجلة': d.months_enrolled,
+      'إجمالي المتوقع': d.total_expected,
+      'إجمالي المدفوع': d.total_paid,
+      'المديونية': d.debt,
+      'موعد التجديد': d.next_payment_date ? formatDate(d.next_payment_date) : '—',
+    }));
+    const ws = XLSX.utils.json_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'اللاعبين الدوريين');
+    XLSX.writeFile(wb, `league_players_${new Date().toISOString().split('T')[0]}.xlsx`);
+  }
 
   if (initialLoading) return <PageLoading />;
 
@@ -83,6 +115,18 @@ export default function PeriodicSubscriptionsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            {/* Filter by Team/Group */}
+            <select
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              className="py-2 px-3 border-2 border-slate-200 rounded-lg font-[Cairo] text-sm bg-slate-50 focus:border-emerald-500 focus:bg-white focus:outline-none transition-colors"
+            >
+              <option value="">كل الفرق / المجموعات</option>
+              {groups.map(g => (
+                <option key={g.id} value={g.name}>{g.name}</option>
+              ))}
+            </select>
+
             {/* Filter by Birth Year */}
             <select
               value={birthYearFilter}
@@ -102,6 +146,15 @@ export default function PeriodicSubscriptionsPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 md:w-64 py-2 px-4 border-2 border-slate-200 rounded-lg font-[Cairo] text-sm bg-slate-50 focus:border-emerald-500 focus:bg-white focus:outline-none transition-colors"
             />
+
+            {/* Export Excel Button */}
+            <button
+              onClick={exportToExcel}
+              disabled={filteredData.length === 0}
+              className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-bold text-sm transition-all cursor-pointer shadow-sm flex items-center gap-2 font-arabic"
+            >
+              📊 تصدير Excel
+            </button>
           </div>
         </div>
       </div>
