@@ -25,13 +25,16 @@ import ExpensesPage from './pages/expenses/ExpensesPage';
 import ReportsPage from './pages/reports/ReportsPage';
 import UsersPage from './pages/settings/UsersPage';
 import SettingsPage from './pages/settings/SettingsPage';
+import ProfilePage from './pages/profile/ProfilePage';
 
 function RequireAuth({ children, roles }: { children: React.ReactNode, roles?: string[] }) {
   const { session, profile, loading } = useAuth();
   
   if (loading) return <PageLoading />;
   if (!session) return <Navigate to="/login" replace />;
-  if (profile === null || profile.is_active === false) {
+  // Profile still being fetched — show loading, NOT the inactive screen
+  if (profile === null) return <PageLoading />;
+  if (profile.is_active === false) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-8">
         <div className="surface-card max-w-md w-full p-8 text-center space-y-6">
@@ -40,7 +43,7 @@ function RequireAuth({ children, roles }: { children: React.ReactNode, roles?: s
           </div>
           <h2 className="text-xl font-bold text-slate-900 font-arabic">عذراً، حسابك غير نشط</h2>
           <p className="text-slate-600 font-arabic">
-            يبدو أنه ليس لديك حساب مفعل في النظام أو تم إيقاف حسابك. يرجى التواصل مع الإدارة.
+            تم إيقاف حسابك. يرجى التواصل مع الإدارة.
           </p>
           <button 
             onClick={() => supabase.auth.signOut().then(() => window.location.href = '/login')}
@@ -89,6 +92,7 @@ function AppRoutes() {
         {/* System Settings: Owner only */}
         <Route path="users" element={<RequireAuth roles={['owner']}><UsersPage /></RequireAuth>} />
         <Route path="settings" element={<RequireAuth roles={['owner', 'admin']}><SettingsPage /></RequireAuth>} />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
       
       <Route path="*" element={<Navigate to="/" replace />} />

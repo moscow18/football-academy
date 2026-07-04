@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   LayoutDashboard, Users, ClipboardCheck, Wallet, AlertCircle, 
@@ -36,7 +36,6 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { profile, signOut } = useAuth();
-  const location = useLocation();
   const role = profile?.role || 'coach';
 
   const filteredItems = navItems.filter(item => item.roles.includes(role));
@@ -83,7 +82,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   <div className="h-px bg-slate-800/50 mx-6 my-3" />
                 )}
                 <NavLink
-                  to={item.path + location.search}
+                  to={item.path}
                   end={item.path === '/'}
                   onClick={() => onClose()}
                   className={({ isActive }) =>

@@ -74,9 +74,14 @@ export default function PlayerProfile() {
   if (loading || !player) return <PageLoading />;
 
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
+  // Billing start date: the later of registration_date or 2026-07-01 (matching server RPC)
+  const billingStartDate = new Date(Math.max(
+    new Date(player.registration_date).getTime(),
+    new Date('2026-07-01').getTime()
+  ));
   const monthsEnrolled = Math.max(1,
     (new Date().getFullYear() * 12 + new Date().getMonth()) -
-    (new Date(player.registration_date).getFullYear() * 12 + new Date(player.registration_date).getMonth()) + 1
+    (billingStartDate.getFullYear() * 12 + billingStartDate.getMonth()) + 1
   );
   const totalExpected = player.fee_amount * monthsEnrolled;
   const debt = totalExpected - totalPaid;

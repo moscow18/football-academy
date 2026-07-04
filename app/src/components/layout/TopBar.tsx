@@ -63,7 +63,7 @@ export default function TopBar({ title, onMenuToggle }: TopBarProps) {
           </div>
         )}
 
-        <div className="flex items-center gap-2 md:gap-3 border-r border-slate-200 pr-3 md:pr-5 ml-1 md:ml-2">
+        <Link to="/profile" className="flex items-center gap-2 md:gap-3 border-r border-slate-200 pr-3 md:pr-5 ml-1 md:ml-2 no-underline hover:opacity-80 transition-opacity cursor-pointer">
           <div className="text-left hidden sm:block">
             <div className="text-sm font-bold text-slate-800 font-arabic leading-tight">{profile?.full_name || 'المستخدم'}</div>
             <div className="text-[10px] text-slate-500 font-bold font-arabic">{roleLabels[profile?.role || 'coach']}</div>
@@ -71,7 +71,7 @@ export default function TopBar({ title, onMenuToggle }: TopBarProps) {
           <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shadow-sm border border-emerald-200 overflow-hidden">
              {profile?.full_name ? profile.full_name.charAt(0) : <User size={20} />}
           </div>
-        </div>
+        </Link>
 
       </div>
     </div>

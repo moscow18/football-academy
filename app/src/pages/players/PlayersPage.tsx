@@ -20,6 +20,7 @@ export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
 
@@ -100,6 +101,7 @@ export default function PlayersPage() {
       setTotal(count || 0);
     }
     setLoading(false);
+    setInitialLoading(false);
   }, [page, branchFilter, debouncedSearch, filterGroup, filterStatus, filterBirthYear, toast]);
 
   useEffect(() => { loadGroups(); }, [loadGroups]);
@@ -310,13 +312,22 @@ export default function PlayersPage() {
       </div>
 
       {/* Table */}
-      {loading ? <PageLoading /> : players.length === 0 ? (
-        <EmptyState icon={<Users size={48} />} title="لا يوجد لاعبين" subtitle="قم بتغيير فلاتر البحث أو أضف لاعبين جدد للبدء" />
+      {initialLoading ? (
+        <PageLoading />
       ) : (
-        <div className="bg-white rounded-xl flex flex-col overflow-hidden shadow-sm border border-slate-200">
-          <div className="overflow-x-auto">
-            <table className="w-full text-right">
-              <thead className="bg-slate-50 border-b border-slate-200">
+        <div className={`transition-opacity duration-200 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+          {players.length === 0 ? (
+            <EmptyState icon={<Users size={48} />} title="لا يوجد لاعبين" subtitle="قم بتغيير فلاتر البحث أو أضف لاعبين جدد للبدء" />
+          ) : (
+            <div className="bg-white rounded-xl flex flex-col overflow-hidden shadow-sm border border-slate-200 relative">
+              {loading && (
+                <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-10">
+                  <div className="w-8 h-8 rounded-full border-4 border-emerald-600 border-t-transparent animate-spin"></div>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-right">
+                  <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="w-10 text-center">
                     <input 
@@ -477,6 +488,8 @@ export default function PlayersPage() {
           )}
         </div>
       )}
+    </div>
+  )}
 
       {/* Add/Edit Player Modal */}
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editingPlayer ? 'تعديل لاعب' : 'إضافة لاعب جديد'} size="lg" footer={
@@ -578,11 +591,6 @@ export default function PlayersPage() {
             </select>
           </div>
 
-          <div>
-            <label className="form-label">المبلغ (ج.م)</label>
-            <input type="number" value={form.fee_amount} onChange={(e) => setForm(f => ({ ...f, fee_amount: e.target.value }))}
-              className="input-field font-tabular" placeholder="500" dir="ltr" />
-          </div>
           {editingPlayer && (
             <div>
               <label className="form-label">الحالة</label>

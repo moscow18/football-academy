@@ -179,7 +179,7 @@ export default function AttendancePage() {
       {/* Attendance Content */}
       {!selectedGroup ? (
         <EmptyState icon={<ClipboardList size={48} />} title="اختر مجموعة لتسجيل الحضور" subtitle="حدد المجموعة والتاريخ من الشريط العلوي للبدء" />
-      ) : loading ? (
+      ) : loading && playerRows.length === 0 ? (
         <PageLoading />
       ) : playerRows.length === 0 ? (
         <EmptyState 
@@ -188,7 +188,12 @@ export default function AttendancePage() {
           subtitle="لتسجيل الحضور، يجب عليك أولاً الذهاب إلى (صفحة اللاعبين) وتعديل بيانات اللاعبين لربطهم بهذه المجموعة." 
         />
       ) : (
-        <div className="space-y-4">
+        <div className={`space-y-4 relative transition-opacity duration-200 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+          {loading && (
+            <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-10">
+              <div className="w-8 h-8 rounded-full border-4 border-emerald-600 border-t-transparent animate-spin"></div>
+            </div>
+          )}
           {/* Summary Stats */}
           <div className="flex flex-wrap gap-4 p-4 surface-card items-center">
             <span className="font-semibold text-slate-700 font-arabic text-sm ml-2">ملخص الحضور:</span>

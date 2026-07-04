@@ -71,7 +71,7 @@ export function buildWhatsAppLink(phone: string, message: string): string {
 
 /** Generate a WhatsApp late arrival message */
 export function lateArrivalMessage(playerName: string): string {
-  return `السلام عليكم 🙏\nنود إبلاغكم أن اللاعب ${playerName} وصل متأخراً لتدريب اليوم.\nنرجو الالتزام بالمواعيد المحددة.\nأكاديمية جرين هيل ⚽`;
+  return `السلام عليكم 🙏\nنود إبلاغكم أن اللاعب ${playerName} وصل متأخراً لتدريب اليوم.\nنرجو الالتزام بالمواعيد المحددة.\nأكاديمية VFC ⚽`;
 }
 
 /** Generate a WhatsApp debt reminder message */
@@ -97,7 +97,7 @@ export function renewalReminderMessage(playerName: string, nextDate: string, las
 
 /** Generate absence warning message */
 export function absenceWarningMessage(playerName: string, count: number): string {
-  return `السلام عليكم 🙏\nنود إبلاغكم أن اللاعب ${playerName} تغيب ${count} حصص متتالية.\nنرجو التواصل معنا لمعرفة السبب.\nأكاديمية جرين هيل ⚽`;
+  return `السلام عليكم 🙏\nنود إبلاغكم أن اللاعب ${playerName} تغيب ${count} حصص متتالية.\nنرجو التواصل معنا لمعرفة السبب.\nأكاديمية VFC ⚽`;
 }
 
 /** Truncate text with ellipsis */

@@ -10,6 +10,7 @@ export default function DebtsPage() {
   const { branchFilter } = useBranch();
   const [debts, setDebts] = useState<DebtItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [showDebtsOnly, setShowDebtsOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -24,6 +25,7 @@ export default function DebtsPage() {
     });
     setDebts((data as DebtItem[]) || []);
     setLoading(false);
+    setInitialLoading(false);
   }
 
   const filteredData = debts.filter(d => {
@@ -35,10 +37,10 @@ export default function DebtsPage() {
   const totalDebt = debts.reduce((s, d) => s + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0);
   const debtorsCount = debts.filter(d => Number(d.debt) > 0).length;
 
-  if (loading) return <PageLoading />;
+  if (initialLoading) return <PageLoading />;
 
   return (
-    <div>
+    <div className={`transition-opacity duration-200 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* Summary */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5 shadow-sm flex flex-col md:flex-row gap-5 justify-between items-center">
         <div className="flex gap-6 items-center flex-wrap">

@@ -15,6 +15,7 @@ const pageTitles: Record<string, string> = {
   '/expenses': 'المصروفات',
   '/reports': 'التقارير',
   '/users': 'إدارة المستخدمين',
+  '/profile': 'حسابي',
 };
 
 export default function AppLayout() {

@@ -10,9 +10,18 @@ import Modal from '../../components/ui/Modal';
 import type { Payment, Player } from '../../lib/types';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { FileText } from 'lucide-react';
+import { FileText, Users, X, Search } from 'lucide-react';
 
 const PAGE_SIZE = 50;
+
+interface BulkPaymentPlayer {
+  id: string;
+  full_name: string;
+  player_code: string;
+  branch_id: string;
+  fee_amount: number;
+  amount: string; // editable amount per player
+}
 
 export default function PaymentsPage() {
   const { branchFilter } = useBranch();
@@ -21,6 +30,7 @@ export default function PaymentsPage() {
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [searchPlayer, setSearchPlayer] = useState('');
@@ -39,6 +49,16 @@ export default function PaymentsPage() {
     player_id: '', branch_id: '', amount: '', method: 'cash',
     period_covered: getCurrentMonth(), notes: '',
   });
+
+  // Bulk payment modal
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkPlayers, setBulkPlayers] = useState<BulkPaymentPlayer[]>([]);
+  const [bulkSearchResults, setBulkSearchResults] = useState<Player[]>([]);
+  const [bulkSearch, setBulkSearch] = useState('');
+  const [bulkMethod, setBulkMethod] = useState<'cash' | 'transfer'>('cash');
+  const [bulkPeriod, setBulkPeriod] = useState(getCurrentMonth());
+  const [bulkNotes, setBulkNotes] = useState('');
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
 
   const loadPayments = useCallback(async () => {
     const queryId = ++queryIdRef.current;
@@ -68,6 +88,7 @@ export default function PaymentsPage() {
     setPayments(mapped);
     setTotal(count || 0);
     setLoading(false);
+    setInitialLoading(false);
   }, [page, branchFilter, debouncedSearchPlayer]);
 
   // Debounce search player
@@ -97,6 +118,42 @@ export default function PaymentsPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [playerSearch, showForm, branchFilter]);
+
+  // Bulk payment search
+  useEffect(() => {
+    if (!showBulkForm || !bulkSearch) { setBulkSearchResults([]); return; }
+    const timer = setTimeout(async () => {
+      let q = supabase.from('players').select('id, full_name, player_code, branch_id, fee_amount').eq('status', 'active');
+      if (branchFilter) q = q.eq('branch_id', branchFilter);
+      q = q.or(`full_name.ilike.%${bulkSearch}%,player_code.ilike.%${bulkSearch}%`).limit(10);
+      const { data } = await q;
+      // Filter out already added players
+      const addedIds = new Set(bulkPlayers.map(p => p.id));
+      setBulkSearchResults((data as Player[] || []).filter(p => !addedIds.has(p.id)));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [bulkSearch, showBulkForm, branchFilter, bulkPlayers]);
+
+  function addBulkPlayer(p: Player) {
+    setBulkPlayers(prev => [...prev, {
+      id: p.id,
+      full_name: p.full_name,
+      player_code: p.player_code,
+      branch_id: p.branch_id,
+      fee_amount: p.fee_amount,
+      amount: String(p.fee_amount),
+    }]);
+    setBulkSearch('');
+    setBulkSearchResults([]);
+  }
+
+  function removeBulkPlayer(id: string) {
+    setBulkPlayers(prev => prev.filter(p => p.id !== id));
+  }
+
+  function updateBulkPlayerAmount(id: string, amount: string) {
+    setBulkPlayers(prev => prev.map(p => p.id === id ? { ...p, amount } : p));
+  }
 
   async function savePayment() {
     if (isSaving) return;
@@ -138,6 +195,60 @@ export default function PaymentsPage() {
       loadPayments();
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function saveBulkPayments() {
+    if (isBulkSaving) return;
+    if (bulkPlayers.length === 0) {
+      toast('error', 'يرجى إضافة لاعب واحد على الأقل');
+      return;
+    }
+    const invalidPlayers = bulkPlayers.filter(p => !p.amount || Number(p.amount) <= 0);
+    if (invalidPlayers.length > 0) {
+      toast('error', `يرجى إدخال مبلغ صحيح لكل اللاعبين`);
+      return;
+    }
+    if (!window.confirm(`هل أنت متأكد من تسجيل ${bulkPlayers.length} دفعة؟`)) return;
+
+    setIsBulkSaving(true);
+    try {
+      // Insert all payments
+      const paymentRows = bulkPlayers.map(p => ({
+        player_id: p.id,
+        branch_id: p.branch_id || branchFilter,
+        amount: Number(p.amount),
+        method: bulkMethod,
+        period_covered: bulkPeriod,
+        notes: bulkNotes || null,
+        recorded_by: profile?.id,
+      }));
+
+      const { error } = await supabase.from('payments').insert(paymentRows);
+      if (error) {
+        toast('error', 'حدث خطأ في تسجيل الدفعات');
+        console.error(error);
+        return;
+      }
+
+      // Also create invoices for all
+      const invoiceRows = bulkPlayers.map(p => ({
+        player_id: p.id,
+        branch_id: p.branch_id || branchFilter,
+        amount: Number(p.amount),
+      }));
+      await supabase.from('invoices').insert(invoiceRows);
+
+      toast('success', `تم تسجيل ${bulkPlayers.length} دفعة بنجاح ✅`);
+      setShowBulkForm(false);
+      setBulkPlayers([]);
+      setBulkSearch('');
+      setBulkMethod('cash');
+      setBulkPeriod(getCurrentMonth());
+      setBulkNotes('');
+      loadPayments();
+    } finally {
+      setIsBulkSaving(false);
     }
   }
 
@@ -187,18 +298,31 @@ export default function PaymentsPage() {
         <button onClick={() => setShowForm(true)} className="py-2 px-4 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-all cursor-pointer shadow-sm">
           + تسجيل دفعة
         </button>
+        <button onClick={() => setShowBulkForm(true)} className="py-2 px-4 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-all cursor-pointer shadow-sm flex items-center gap-2">
+          <Users size={16} />
+          تسديد جماعي
+        </button>
       </div>
 
       <div className="text-sm text-slate-500 mb-3">
         إجمالي: <strong>{total.toLocaleString('ar-EG')}</strong> دفعة
       </div>
 
-      {loading ? <PageLoading /> : payments.length === 0 ? (
-        <EmptyState icon="💰" title="لا توجد مدفوعات" />
+      {initialLoading ? (
+        <PageLoading />
       ) : (
-        <div className="premium-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="premium-table">
+        <div className={`transition-opacity duration-200 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+          {payments.length === 0 ? (
+            <EmptyState icon="💰" title="لا توجد مدفوعات" />
+          ) : (
+            <div className="premium-card overflow-hidden relative">
+              {loading && (
+                <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-10">
+                  <div className="w-8 h-8 rounded-full border-4 border-emerald-600 border-t-transparent animate-spin"></div>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="premium-table">
               <thead>
                 <tr>
                   <th>اللاعب</th>
@@ -250,6 +374,8 @@ export default function PaymentsPage() {
           )}
         </div>
       )}
+    </div>
+  )}
 
       {/* Add Payment Modal */}
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="تسجيل دفعة جديدة" footer={
@@ -312,6 +438,129 @@ export default function PaymentsPage() {
             <textarea value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
               className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg font-[Cairo] text-sm focus:border-emerald-500 focus:outline-none resize-none h-16" />
           </div>
+        </div>
+      </Modal>
+
+      {/* Bulk Payment Modal */}
+      <Modal isOpen={showBulkForm} onClose={() => setShowBulkForm(false)} title="تسديد جماعي" size="xl" footer={
+        <>
+          <button onClick={saveBulkPayments} disabled={isBulkSaving || bulkPlayers.length === 0} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-2">
+            <Users size={16} />
+            {isBulkSaving ? 'جاري التسديد...' : `تسديد ${bulkPlayers.length} لاعب`}
+          </button>
+          <button onClick={() => setShowBulkForm(false)} disabled={isBulkSaving} className="px-5 py-2.5 border-2 border-slate-200 rounded-lg font-bold text-sm disabled:opacity-50 cursor-pointer">إلغاء</button>
+        </>
+      }>
+        <div className="space-y-5">
+          {/* Shared settings */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-slate-700">طريقة الدفع</label>
+              <select value={bulkMethod} onChange={(e) => setBulkMethod(e.target.value as 'cash' | 'transfer')}
+                className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg font-[Cairo] text-sm focus:border-blue-500 focus:outline-none bg-white">
+                <option value="cash">💵 نقدي</option>
+                <option value="transfer">🏦 تحويل</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-slate-700">الفترة</label>
+              <input type="month" value={bulkPeriod} onChange={(e) => setBulkPeriod(e.target.value)}
+                className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg font-[Cairo] text-sm focus:border-blue-500 focus:outline-none bg-white" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-slate-700">ملاحظات (اختياري)</label>
+              <input type="text" value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)}
+                placeholder="ملاحظات مشتركة..."
+                className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg font-[Cairo] text-sm focus:border-blue-500 focus:outline-none bg-white" />
+            </div>
+          </div>
+
+          {/* Search and add players */}
+          <div>
+            <label className="block text-sm font-semibold mb-1 text-slate-700">بحث وإضافة لاعبين</label>
+            <div className="relative">
+              <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={bulkSearch}
+                onChange={(e) => setBulkSearch(e.target.value)}
+                placeholder="اكتب اسم أو كود اللاعب لإضافته..."
+                className="w-full py-2.5 pr-10 pl-3 border-2 border-slate-200 rounded-lg font-[Cairo] text-sm focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            {bulkSearchResults.length > 0 && (
+              <div className="mt-2 border border-slate-200 rounded-lg max-h-40 overflow-y-auto bg-white shadow-sm">
+                {bulkSearchResults.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => addBulkPlayer(p)}
+                    className="w-full text-right px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors border-none cursor-pointer font-[Cairo] bg-white flex items-center justify-between"
+                  >
+                    <span>{p.full_name} <span className="text-slate-400 text-xs">({p.player_code})</span></span>
+                    <span className="text-blue-600 text-xs font-bold">+ إضافة</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Players list */}
+          {bulkPlayers.length > 0 ? (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-bold text-slate-700">
+                  اللاعبين المضافين ({bulkPlayers.length})
+                </div>
+                <div className="text-sm font-bold text-blue-600">
+                  الإجمالي: {formatMoney(bulkPlayers.reduce((s, p) => s + (Number(p.amount) || 0), 0))} ج.م
+                </div>
+              </div>
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-right">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-2.5 text-xs font-bold text-slate-500">اللاعب</th>
+                      <th className="px-4 py-2.5 text-xs font-bold text-slate-500">الكود</th>
+                      <th className="px-4 py-2.5 text-xs font-bold text-slate-500 w-32">المبلغ (ج.م)</th>
+                      <th className="px-4 py-2.5 text-xs font-bold text-slate-500 w-12"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {bulkPlayers.map(p => (
+                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-2.5 text-sm font-semibold text-slate-800">{p.full_name}</td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{p.player_code}</td>
+                        <td className="px-4 py-2.5">
+                          <input
+                            type="number"
+                            value={p.amount}
+                            onChange={(e) => updateBulkPlayerAmount(p.id, e.target.value)}
+                            className="w-full py-1.5 px-2 border border-slate-200 rounded-md font-[Cairo] text-sm focus:border-blue-500 focus:outline-none tabular-nums text-center"
+                            dir="ltr"
+                            min="0"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <button
+                            onClick={() => removeBulkPlayer(p.id)}
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer bg-transparent border-none"
+                            title="إزالة"
+                          >
+                            <X size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-400">
+              <Users size={40} className="mx-auto mb-3 opacity-40" />
+              <p className="font-semibold">ابحث عن لاعبين وأضفهم للقائمة</p>
+              <p className="text-xs mt-1">يمكنك تعديل المبلغ لكل لاعب على حدة</p>
+            </div>
+          )}
         </div>
       </Modal>
 
