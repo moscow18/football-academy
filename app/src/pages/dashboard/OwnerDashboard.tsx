@@ -3,13 +3,14 @@ import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatMonth } from '../../lib/utils';
-import { Users, TrendingUp, AlertCircle, Activity } from 'lucide-react';
+import { Users, TrendingUp, Activity } from 'lucide-react';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 interface DashboardStats {
   activePlayers: number;
   totalDebt: number;
+  totalCollected: number;
   netProfit: number;
   revenueTrend: any[];
   recentPlayers: any[];
@@ -66,6 +67,11 @@ export default function OwnerDashboard() {
       const { data: debtData } = await supabase.rpc('get_total_active_debt', { p_branch_id: branchFilter });
       const totalDebt = debtData && debtData.length > 0 ? Number(debtData[0].total_debt) : 0;
 
+      let pq = supabase.from('payments').select('amount');
+      if (branchFilter) pq = pq.eq('branch_id', branchFilter);
+      const { data: paymentsData } = await pq;
+      const totalCollected = paymentsData ? paymentsData.reduce((sum: number, p: any) => sum + Number(p.amount), 0) : 0;
+
       let recent = recentPlayersData || [];
       if (branchFilter) {
         recent = recent.filter(p => p.branch_id === branchFilter);
@@ -74,6 +80,7 @@ export default function OwnerDashboard() {
       setStats({
         activePlayers,
         totalDebt,
+        totalCollected,
         netProfit: totalNetProfit,
         revenueTrend: trendData || [],
         recentPlayers: recent,
@@ -139,22 +146,22 @@ export default function OwnerDashboard() {
               </div>
             </div>
 
-            {/* Open Dues */}
+            {/* Total Collected */}
             <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-4">
-                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">مديونيات مفتوحة</span>
+                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">المبلغ الحالي اللي معانا</span>
                 <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <AlertCircle size={20} strokeWidth={2} />
+                  <TrendingUp size={20} strokeWidth={2} />
                 </div>
               </div>
               <div className="flex items-baseline gap-2">
                 <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
-                  {stats.totalDebt.toLocaleString('en-US')}
+                  {stats.totalCollected.toLocaleString('en-US')}
                 </h3>
                 <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
               </div>
               <div className="mt-3 flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-400 font-arabic">مبالغ مستحقة لم يتم سدادها</span>
+                <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي الاشتراكات المحصلة</span>
               </div>
             </div>
           </>
