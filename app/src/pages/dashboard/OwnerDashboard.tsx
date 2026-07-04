@@ -64,13 +64,12 @@ export default function OwnerDashboard() {
 
       const totalNetProfit = branchBreakdown.reduce((sum: number, b: any) => sum + Number(b.net_profit || 0), 0);
       
-      const { data: debtData } = await supabase.rpc('get_total_active_debt', { p_branch_id: branchFilter });
-      const totalDebt = debtData && debtData.length > 0 ? Number(debtData[0].total_debt) : 0;
-
-      let pq = supabase.from('payments').select('amount');
-      if (branchFilter) pq = pq.eq('branch_id', branchFilter);
-      const { data: paymentsData } = await pq;
-      const totalCollected = paymentsData ? paymentsData.reduce((sum: number, p: any) => sum + Number(p.amount), 0) : 0;
+      const { data: debtListData, error: debtListError } = await supabase.rpc('rpc_debt_list', { p_branch_id: branchFilter });
+      if (debtListError) {
+        console.error('OwnerDashboard: error loading rpc_debt_list:', debtListError);
+      }
+      const totalDebt = debtListData ? debtListData.reduce((sum: number, d: any) => sum + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0) : 0;
+      const totalCollected = debtListData ? debtListData.reduce((sum: number, d: any) => sum + Number(d.total_paid || 0), 0) : 0;
 
       let recent = recentPlayersData || [];
       if (branchFilter) {
