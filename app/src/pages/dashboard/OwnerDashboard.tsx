@@ -69,7 +69,14 @@ export default function OwnerDashboard() {
         console.error('OwnerDashboard: error loading rpc_debt_list:', debtListError);
       }
       const totalDebt = debtListData ? debtListData.reduce((sum: number, d: any) => sum + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0) : 0;
-      const totalCollected = debtListData ? debtListData.reduce((sum: number, d: any) => sum + Number(d.total_paid || 0), 0) : 0;
+
+      let pq = supabase.from('players').select('fee_amount, fee_amount_periodic').eq('status', 'active');
+      if (branchFilter) pq = pq.eq('branch_id', branchFilter);
+      const { data: playersListData, error: playersListError } = await pq;
+      if (playersListError) {
+        console.error('OwnerDashboard: error loading active players fees:', playersListError);
+      }
+      const totalCollected = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0) + Number(p.fee_amount_periodic || 0), 0) : 0;
 
       let recent = recentPlayersData || [];
       if (branchFilter) {
@@ -160,7 +167,7 @@ export default function OwnerDashboard() {
                 <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
               </div>
               <div className="mt-3 flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي الاشتراكات المحصلة</span>
+                <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي قيمة اشتراكات اللاعبين</span>
               </div>
             </div>
           </>
