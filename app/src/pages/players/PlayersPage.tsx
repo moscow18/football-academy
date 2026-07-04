@@ -329,7 +329,7 @@ export default function PlayersPage() {
                   <div className="w-8 h-8 rounded-full border-4 border-emerald-600 border-t-transparent animate-spin"></div>
                 </div>
               )}
-              <div className="overflow-x-auto">
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-right">
                   <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
@@ -444,6 +444,109 @@ export default function PlayersPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className="block md:hidden divide-y divide-slate-100">
+            {players.map(p => (
+              <div key={p.id} className={`p-4 flex flex-col gap-3 transition-colors ${selectedPlayers.includes(p.id) ? 'bg-emerald-50/50' : 'hover:bg-slate-50'}`}>
+                {/* Top row: Checkbox, Photo, Name & Code */}
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedPlayers.includes(p.id)}
+                    onChange={() => togglePlayerSelection(p.id)}
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer mt-1"
+                  />
+                  <Link to={`/players/${p.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                    {p.photo_url ? (
+                      <img src={p.photo_url} alt={p.full_name} className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold shrink-0 font-arabic">
+                        {p.full_name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-800 font-arabic text-base truncate hover:text-emerald-700 transition-colors">{p.full_name}</div>
+                      <div className="text-xs text-slate-400 font-mono mt-0.5">{p.player_code}</div>
+                    </div>
+                  </Link>
+                  {/* Actions buttons */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => {
+                      const phone = p.parent_phone || p.phone;
+                      if (!phone) { toast('error', 'لا يوجد رقم هاتف مسجل للاعب'); return; }
+                      const msg = `مرحباً بك في أكاديمية VFC، نذكركم بموعد سداد الاشتراك للاعب ${p.full_name}.`;
+                      window.open(buildWhatsAppLink(phone, msg), '_blank');
+                    }} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="إرسال تذكير واتساب">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                    </button>
+                    <button onClick={() => navigate('/payments')} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="تسديد الاشتراك">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                    </button>
+                    <button onClick={() => openEditForm(p)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
+                      <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => deactivatePlayer(p.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="تعطيل">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Middle row: Details */}
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 font-arabic pt-2 border-t border-slate-50">
+                  <div>
+                    <span className="text-slate-400 font-medium">المجموعة:</span>{' '}
+                    <span className="font-bold text-slate-700">{p.group_name || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium">الهاتف:</span>{' '}
+                    <span className="font-mono text-slate-700">{p.phone || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium">السن / المواليد:</span>{' '}
+                    <span className="font-bold text-slate-700">
+                      {p.date_of_birth ? `${new Date().getFullYear() - parseInt(p.date_of_birth.substring(0,4))} سنة (مواليد ${p.date_of_birth.substring(0,4)})` : '—'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium">تاريخ التسجيل:</span>{' '}
+                    <span className="font-mono text-slate-700">{formatDate(p.registration_date)}</span>
+                  </div>
+                </div>
+
+                {/* Bottom row: Status and Subscription Price */}
+                <div className="flex justify-between items-center pt-2 border-t border-slate-50">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      p.status === 'active' ? 'bg-emerald-50 text-emerald-700' 
+                      : p.status === 'suspended' ? 'bg-amber-50 text-amber-700' 
+                      : 'bg-red-50 text-red-700'
+                    }`}>
+                      {p.status === 'active' ? 'نشط' : p.status === 'suspended' ? 'موقوف' : 'غير نشط'}
+                    </span>
+                    <span className="text-xs text-slate-500 font-bold font-arabic">
+                      {p.payment_type === 'quarterly' ? 'دوري / سنوي' : 'شهري'}
+                    </span>
+                  </div>
+                  <div className="text-left font-arabic">
+                    {Number(p.fee_amount) > 0 && (
+                      <div className="font-bold text-slate-800 font-tabular text-sm">
+                        {formatMoney(p.fee_amount)} <span className="text-[10px] text-slate-400 font-medium font-arabic">شهري</span>
+                      </div>
+                    )}
+                    {Number(p.fee_amount_periodic) > 0 && (
+                      <div className="font-bold text-emerald-600 font-tabular text-sm">
+                        {formatMoney(p.fee_amount_periodic)} <span className="text-[10px] text-emerald-400 font-medium font-arabic">دوري</span>
+                      </div>
+                    )}
+                    {!(Number(p.fee_amount) > 0) && !(Number(p.fee_amount_periodic) > 0) && (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Pagination */}
