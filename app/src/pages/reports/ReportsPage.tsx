@@ -61,7 +61,7 @@ export default function ReportsPage() {
         const { data } = await supabase.rpc('rpc_debt_list', {
           p_branch_id: branchFilter || null,
         });
-        setDebtData(data || []);
+        setDebtData((data || []).filter((d: any) => Number(d.debt) > 0));
       }
     } catch (err) {
       console.error(err);

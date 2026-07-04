@@ -19,7 +19,7 @@ const navItems: NavItem[] = [
   { path: '/players', label: 'اللاعبين', icon: Users, roles: ['owner', 'admin', 'coach'] },
   { path: '/attendance', label: 'الحضور', icon: ClipboardCheck, roles: ['owner', 'admin', 'coach'] },
   { path: '/payments', label: 'المدفوعات', icon: Wallet, roles: ['owner', 'admin'] },
-  { path: '/debts', label: 'الاشتراكات والمديونيات', icon: AlertCircle, roles: ['owner'] },
+  { path: '/debts', label: 'الاشتراكات والمحصل المالي', icon: AlertCircle, roles: ['owner'] },
   { path: '/invoices', label: 'الفواتير', icon: FileText, roles: ['owner'] },
   { path: '/coaches', label: 'المدربين', icon: GraduationCap, roles: ['owner', 'admin'] },
   { path: '/groups', label: 'الفرق التدريبية', icon: Users, roles: ['owner', 'admin'] },

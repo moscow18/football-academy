@@ -66,6 +66,7 @@ CREATE TABLE players (
   status player_status DEFAULT 'active',
   payment_type text DEFAULT 'monthly',
   fee_amount numeric DEFAULT 0,
+  fee_amount_periodic numeric DEFAULT 0,
   photo_url text,
   notes text,
   created_at timestamptz DEFAULT now()
@@ -631,6 +632,7 @@ RETURNS TABLE(
   phone text,
   parent_phone text,
   fee_amount numeric,
+  fee_amount_periodic numeric,
   payment_type text,
   registration_date date,
   months_enrolled integer,
@@ -643,53 +645,62 @@ RETURNS TABLE(
 LANGUAGE sql
 STABLE
 AS $$
+  WITH player_stats AS (
+    SELECT
+      p.id AS player_id,
+      p.full_name AS player_name,
+      p.player_code,
+      p.branch_id,
+      b.name AS branch_name,
+      g.name AS group_name,
+      p.phone,
+      p.parent_phone,
+      p.fee_amount,
+      p.fee_amount_periodic,
+      p.payment_type,
+      p.registration_date,
+      ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
+       + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
+       + 1)::integer AS months_enrolled,
+      COALESCE(pay.total_paid, 0) AS total_paid,
+      pay.last_pay_date AS last_payment_date
+    FROM players p
+    JOIN branches b ON b.id = p.branch_id
+    LEFT JOIN groups g ON g.id = p.group_id
+    LEFT JOIN (
+      SELECT 
+        player_id, 
+        SUM(amount) AS total_paid,
+        MAX(payment_date) AS last_pay_date
+      FROM payments
+      GROUP BY player_id
+    ) pay ON pay.player_id = p.id
+    WHERE p.status = 'active'
+      AND (p_branch_id IS NULL OR p.branch_id = p_branch_id)
+  )
   SELECT
-    p.id AS player_id,
-    p.full_name AS player_name,
-    p.player_code,
-    p.branch_id,
-    b.name AS branch_name,
-    g.name AS group_name,
-    p.phone,
-    p.parent_phone,
-    p.fee_amount,
-    p.payment_type,
-    p.registration_date,
-    -- Calculate months enrolled starting from greatest of registration_date or '2026-07-01'
-    ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
-     + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
-     + 1)::integer AS months_enrolled,
-    -- Total expected: fee_amount * months_enrolled (from start billing date)
-    (p.fee_amount * ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
-     + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
-     + 1))::numeric AS total_expected,
-    COALESCE(pay.total_paid, 0) AS total_paid,
-    -- Debt = total expected - paid
-    (p.fee_amount * ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
-     + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
-     + 1) - COALESCE(pay.total_paid, 0))::numeric AS debt,
-    -- Last payment date
-    pay.last_pay_date AS last_payment_date,
-    -- Next payment date (registration_date + months_enrolled months)
-    (p.registration_date + (((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
-     + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
-     + 1) * INTERVAL '1 month'))::date AS next_payment_date
-  FROM players p
-  JOIN branches b ON b.id = p.branch_id
-  LEFT JOIN groups g ON g.id = p.group_id
-  LEFT JOIN (
-    SELECT 
-      player_id, 
-      SUM(amount) AS total_paid,
-      MAX(payment_date) AS last_pay_date
-    FROM payments
-    GROUP BY player_id
-  ) pay ON pay.player_id = p.id
-  WHERE p.status = 'active'
-    AND (p_branch_id IS NULL OR p.branch_id = p_branch_id)
-    AND (p.fee_amount * ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
-         + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
-         + 1) - COALESCE(pay.total_paid, 0)) > 0
+    player_id,
+    player_name,
+    player_code,
+    branch_id,
+    branch_name,
+    group_name,
+    phone,
+    parent_phone,
+    fee_amount,
+    fee_amount_periodic,
+    payment_type,
+    registration_date,
+    months_enrolled,
+    -- total_expected calculation
+    (fee_amount * months_enrolled + fee_amount_periodic * CEIL(months_enrolled::numeric / 3.0))::numeric AS total_expected,
+    total_paid,
+    -- debt calculation
+    GREATEST(0, (fee_amount * months_enrolled + fee_amount_periodic * CEIL(months_enrolled::numeric / 3.0) - total_paid))::numeric AS debt,
+    last_payment_date,
+    -- next_payment_date calculation
+    (registration_date + (months_enrolled * INTERVAL '1 month'))::date AS next_payment_date
+  FROM player_stats
   ORDER BY debt DESC;
 $$;
 

@@ -83,8 +83,10 @@ export default function PlayerProfile() {
     (new Date().getFullYear() * 12 + new Date().getMonth()) -
     (billingStartDate.getFullYear() * 12 + billingStartDate.getMonth()) + 1
   );
-  const totalExpected = player.fee_amount * monthsEnrolled;
-  const debt = totalExpected - totalPaid;
+  const feeAmount = player.fee_amount || 0;
+  const feeAmountPeriodic = player.fee_amount_periodic || 0;
+  const totalExpected = (feeAmount * monthsEnrolled) + (feeAmountPeriodic * Math.ceil(monthsEnrolled / 3));
+  const debt = Math.max(0, totalExpected - totalPaid);
 
   const presentCount = attendance.filter(a => a.status === 'present').length;
   const lateCount = attendance.filter(a => a.status === 'late').length;
@@ -175,7 +177,9 @@ export default function PlayerProfile() {
                 { label: 'المجموعة', value: player.group_name || '—' },
                 { label: 'الفرع', value: player.branch_name || '—' },
                 { label: 'تاريخ التسجيل', value: formatDate(player.registration_date) },
-                { label: 'المبلغ الشهري', value: `${formatMoney(player.fee_amount)} ج.م` },
+                { label: 'الاشتراك الشهري', value: `${formatMoney(player.fee_amount)} ج.م` },
+                { label: 'الاشتراك الدوري', value: `${formatMoney(player.fee_amount_periodic || 0)} ج.م` },
+                { label: 'نوع الاشتراك المفضل', value: player.payment_type === 'quarterly' ? 'دوري' : 'شهري' },
               ].map(item => (
                 <div key={item.label}>
                   <div className="text-xs text-slate-400 font-semibold mb-0.5">{item.label}</div>

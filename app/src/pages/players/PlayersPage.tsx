@@ -47,12 +47,12 @@ export default function PlayersPage() {
   const [form, setForm] = useState<{
     full_name: string; phone: string; parent_phone: string; date_of_birth: string;
     group_id: string; branch_id: string;
-    fee_amount: string; notes: string; status: 'active' | 'inactive' | 'suspended';
+    fee_amount: string; fee_amount_periodic: string; notes: string; status: 'active' | 'inactive' | 'suspended';
     payment_type: string; photo_url: string; birth_year: string; registration_date: string;
   }>({
     full_name: '', phone: '', parent_phone: '', date_of_birth: '',
     group_id: '', branch_id: '',
-    fee_amount: '', notes: '', status: 'active',
+    fee_amount: '', fee_amount_periodic: '', notes: '', status: 'active',
     payment_type: 'monthly', photo_url: '', birth_year: '2009',
     registration_date: new Date().toISOString().split('T')[0],
   });
@@ -155,7 +155,7 @@ export default function PlayersPage() {
     setForm({
       full_name: '', phone: '', parent_phone: '', date_of_birth: '',
       group_id: '', branch_id: branchFilter || '',
-      fee_amount: '', notes: '', status: 'active',
+      fee_amount: '', fee_amount_periodic: '', notes: '', status: 'active',
       payment_type: 'monthly', photo_url: '', birth_year: '2009',
       registration_date: new Date().toISOString().split('T')[0],
     });
@@ -171,7 +171,8 @@ export default function PlayersPage() {
       date_of_birth: player.date_of_birth || '',
       group_id: player.group_id || '',
       branch_id: player.branch_id,
-      fee_amount: String(player.fee_amount),
+      fee_amount: String(player.fee_amount || 0),
+      fee_amount_periodic: String(player.fee_amount_periodic || 0),
       notes: player.notes || '',
       status: player.status,
       payment_type: player.payment_type || 'monthly',
@@ -202,6 +203,7 @@ export default function PlayersPage() {
       group_id: form.group_id || null,
       branch_id: form.branch_id,
       fee_amount: Number(form.fee_amount) || 0,
+      fee_amount_periodic: Number(form.fee_amount_periodic) || 0,
       notes: form.notes || null,
       status: form.status,
       payment_type: form.payment_type,
@@ -241,7 +243,9 @@ export default function PlayersPage() {
       'هاتف ولي الأمر': p.parent_phone || '',
       'المجموعة': p.group_name || '',
       'الحالة': p.status === 'active' ? 'نشط' : p.status === 'inactive' ? 'غير نشط' : 'موقوف',
-      'المبلغ': p.fee_amount,
+      'الاشتراك الشهري': p.fee_amount,
+      'الاشتراك الدوري': p.fee_amount_periodic || 0,
+      'نوع الاشتراك': p.payment_type === 'quarterly' ? 'دوري' : 'شهري',
       'تاريخ التسجيل': p.registration_date,
     }));
     const ws = XLSX.utils.json_to_sheet(wsData);
@@ -398,7 +402,23 @@ export default function PlayersPage() {
                       {p.date_of_birth ? `${new Date().getFullYear() - parseInt(p.date_of_birth.substring(0,4))} سنة (مواليد ${p.date_of_birth.substring(0,4)})` : '—'}
                     </td>
                     <td className="px-6 py-4 text-slate-500 font-tabular text-sm font-medium">{formatDate(p.registration_date)}</td>
-                    <td className="px-6 py-4 font-bold text-red-600 font-tabular text-left">{formatMoney(p.fee_amount)}</td>
+                    <td className="px-6 py-4 text-left font-arabic">
+                      <div className="flex flex-col items-start gap-0.5">
+                        {Number(p.fee_amount) > 0 && (
+                          <div className="font-bold text-slate-800 font-tabular text-sm">
+                            {formatMoney(p.fee_amount)} <span className="text-[10px] text-slate-400 font-medium font-arabic">شهري</span>
+                          </div>
+                        )}
+                        {Number(p.fee_amount_periodic) > 0 && (
+                          <div className="font-bold text-emerald-600 font-tabular text-sm">
+                            {formatMoney(p.fee_amount_periodic)} <span className="text-[10px] text-emerald-400 font-medium font-arabic">دوري</span>
+                          </div>
+                        )}
+                        {!(Number(p.fee_amount) > 0) && !(Number(p.fee_amount_periodic) > 0) && (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1">
                         <button onClick={() => {
@@ -518,9 +538,21 @@ export default function PlayersPage() {
           </div>
 
               <div>
-                <label className="form-label">قيمة الاشتراك (ج.م) *</label>
+                <label className="form-label">نوع الاشتراك الحالي *</label>
+                <select value={form.payment_type} onChange={(e) => setForm(f => ({ ...f, payment_type: e.target.value }))} className="input-field">
+                  <option value="monthly">شهري</option>
+                  <option value="quarterly">دوري / سنوي (كل 3 شهور)</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label">الاشتراك الشهري (ج.م)</label>
                 <input type="number" value={form.fee_amount} onChange={(e) => setForm(f => ({ ...f, fee_amount: e.target.value }))}
-                  className="input-field font-tabular" dir="ltr" />
+                  className="input-field font-tabular" placeholder="مثال: 500" dir="ltr" />
+              </div>
+              <div>
+                <label className="form-label">الاشتراك الدوري (ج.م)</label>
+                <input type="number" value={form.fee_amount_periodic} onChange={(e) => setForm(f => ({ ...f, fee_amount_periodic: e.target.value }))}
+                  className="input-field font-tabular" placeholder="مثال: 1200" dir="ltr" />
               </div>
           <div>
             <label className="form-label">رقم الهاتف</label>
@@ -549,13 +581,6 @@ export default function PlayersPage() {
             <label className="form-label">تاريخ التسجيل والاشتراك *</label>
             <input type="date" value={form.registration_date} onChange={(e) => setForm(f => ({ ...f, registration_date: e.target.value }))}
               className="input-field font-tabular" />
-          </div>
-          <div>
-            <label className="form-label">نوع الاشتراك *</label>
-            <select value={form.payment_type} onChange={(e) => setForm(f => ({ ...f, payment_type: e.target.value }))} className="input-field">
-              <option value="monthly">شهري</option>
-              <option value="quarterly">دوري / سنوي (كل 3 شهور)</option>
-            </select>
           </div>
           <div>
             <label className="form-label">صورة اللاعب (من الجهاز)</label>

@@ -57,6 +57,7 @@ export interface Player {
   status: PlayerStatus;
   payment_type?: string;
   fee_amount: number;
+  fee_amount_periodic?: number;
   photo_url: string | null;
   notes: string | null;
   created_at: string;
@@ -255,6 +256,8 @@ export interface DebtItem {
   phone: string | null;
   parent_phone: string | null;
   fee_amount: number;
+  fee_amount_periodic: number;
+  payment_type: string;
   registration_date: string;
   months_enrolled: number;
   total_expected: number;
