@@ -82,14 +82,14 @@ function AppRoutes() {
 
         {/* Financial & Management: Owner, Admin only */}
         <Route path="payments" element={<RequireAuth roles={['owner', 'admin']}><PaymentsPage /></RequireAuth>} />
-        <Route path="debts" element={<RequireAuth roles={['owner']}><DebtsPage /></RequireAuth>} />
-        <Route path="periodic-subscriptions" element={<RequireAuth roles={['owner']}><PeriodicSubscriptionsPage /></RequireAuth>} />
+        <Route path="debts" element={<RequireAuth roles={['owner', 'admin']}><DebtsPage /></RequireAuth>} />
+        <Route path="periodic-subscriptions" element={<RequireAuth roles={['owner', 'admin']}><PeriodicSubscriptionsPage /></RequireAuth>} />
         <Route path="coaches" element={<RequireAuth roles={['owner', 'admin']}><CoachesPage /></RequireAuth>} />
         <Route path="groups" element={<RequireAuth roles={['owner', 'admin']}><GroupsPage /></RequireAuth>} />
         <Route path="kits" element={<RequireAuth roles={['owner', 'admin']}><KitsPage /></RequireAuth>} />
-        <Route path="invoices" element={<RequireAuth roles={['owner']}><InvoicesPage /></RequireAuth>} />
-        <Route path="expenses" element={<RequireAuth roles={['owner']}><ExpensesPage /></RequireAuth>} />
-        <Route path="reports" element={<RequireAuth roles={['owner']}><ReportsPage /></RequireAuth>} />
+        <Route path="invoices" element={<RequireAuth roles={['owner', 'admin']}><InvoicesPage /></RequireAuth>} />
+        <Route path="expenses" element={<RequireAuth roles={['owner', 'admin']}><ExpensesPage /></RequireAuth>} />
+        <Route path="reports" element={<RequireAuth roles={['owner', 'admin']}><ReportsPage /></RequireAuth>} />
         
         {/* System Settings: Owner only */}
         <Route path="users" element={<RequireAuth roles={['owner']}><UsersPage /></RequireAuth>} />

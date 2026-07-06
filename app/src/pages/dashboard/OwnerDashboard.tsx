@@ -131,7 +131,7 @@ export default function OwnerDashboard() {
           </div>
         </div>
 
-        {profile?.role === 'owner' && (
+        {(profile?.role === 'owner' || profile?.role === 'admin') && (
           <>
             {/* Net Profit */}
             <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
@@ -240,7 +240,7 @@ export default function OwnerDashboard() {
         </div>
 
         {/* Chart: Revenue Trend (Owner Only) */}
-        {profile?.role === 'owner' && (
+        {(profile?.role === 'owner' || profile?.role === 'admin') && (
           <div className="bg-white rounded-xl flex flex-col overflow-hidden shadow-sm border border-slate-200">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-700">
