@@ -88,8 +88,8 @@ function AppRoutes() {
         <Route path="groups" element={<RequireAuth roles={['owner', 'admin']}><GroupsPage /></RequireAuth>} />
         <Route path="kits" element={<RequireAuth roles={['owner', 'admin']}><KitsPage /></RequireAuth>} />
         <Route path="invoices" element={<RequireAuth roles={['owner', 'admin']}><InvoicesPage /></RequireAuth>} />
-        <Route path="expenses" element={<RequireAuth roles={['owner', 'admin']}><ExpensesPage /></RequireAuth>} />
-        <Route path="reports" element={<RequireAuth roles={['owner', 'admin']}><ReportsPage /></RequireAuth>} />
+        <Route path="expenses" element={<RequireAuth roles={['owner']}><ExpensesPage /></RequireAuth>} />
+        <Route path="reports" element={<RequireAuth roles={['owner']}><ReportsPage /></RequireAuth>} />
         
         {/* System Settings: Owner only */}
         <Route path="users" element={<RequireAuth roles={['owner']}><UsersPage /></RequireAuth>} />

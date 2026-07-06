@@ -70,13 +70,26 @@ export default function OwnerDashboard() {
       }
       const totalDebt = debtListData ? debtListData.reduce((sum: number, d: any) => sum + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0) : 0;
 
-      let pq = supabase.from('players').select('fee_amount, fee_amount_periodic').eq('status', 'active');
-      if (branchFilter) pq = pq.eq('branch_id', branchFilter);
-      const { data: playersListData, error: playersListError } = await pq;
-      if (playersListError) {
-        console.error('OwnerDashboard: error loading active players fees:', playersListError);
+      let totalCollected = 0;
+      if (profile?.role === 'admin') {
+        const { data: adminPaymentsData, error: adminPaymentsError } = await supabase
+          .from('payments')
+          .select('amount')
+          .eq('recorded_by', profile.id);
+        if (adminPaymentsError) {
+          console.error('OwnerDashboard: error loading admin payments:', adminPaymentsError);
+        } else if (adminPaymentsData) {
+          totalCollected = adminPaymentsData.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+        }
+      } else {
+        let pq = supabase.from('players').select('fee_amount, fee_amount_periodic').eq('status', 'active');
+        if (branchFilter) pq = pq.eq('branch_id', branchFilter);
+        const { data: playersListData, error: playersListError } = await pq;
+        if (playersListError) {
+          console.error('OwnerDashboard: error loading active players fees:', playersListError);
+        }
+        totalCollected = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0) + Number(p.fee_amount_periodic || 0), 0) : 0;
       }
-      const totalCollected = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0) + Number(p.fee_amount_periodic || 0), 0) : 0;
 
       let recent = recentPlayersData || [];
       if (branchFilter) {
@@ -131,7 +144,7 @@ export default function OwnerDashboard() {
           </div>
         </div>
 
-        {(profile?.role === 'owner' || profile?.role === 'admin') && (
+        {profile?.role === 'owner' && (
           <>
             {/* Net Profit */}
             <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
@@ -168,6 +181,29 @@ export default function OwnerDashboard() {
               </div>
               <div className="mt-3 flex items-center gap-1.5">
                 <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي قيمة اشتراكات اللاعبين</span>
+              </div>
+            </div>
+          </>
+        )}
+
+        {profile?.role === 'admin' && (
+          <>
+            {/* Total Personally Collected by Admin */}
+            <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-4">
+                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي ما قمت بتحصيله</span>
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <TrendingUp size={20} strokeWidth={2} />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
+                  {stats.totalCollected.toLocaleString('en-US')}
+                </h3>
+                <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
+              </div>
+              <div className="mt-3 flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-400 font-arabic">المدفوعات المسجلة بواسطتك</span>
               </div>
             </div>
           </>
@@ -240,7 +276,7 @@ export default function OwnerDashboard() {
         </div>
 
         {/* Chart: Revenue Trend (Owner Only) */}
-        {(profile?.role === 'owner' || profile?.role === 'admin') && (
+        {profile?.role === 'owner' && (
           <div className="bg-white rounded-xl flex flex-col overflow-hidden shadow-sm border border-slate-200">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-700">
