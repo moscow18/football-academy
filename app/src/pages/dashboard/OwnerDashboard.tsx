@@ -148,7 +148,7 @@ export default function OwnerDashboard() {
           /* Total Collected */
           <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
-              <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">المبلغ الحالي اللي معانا</span>
+              <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي الاشتراكات</span>
               <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
                 <TrendingUp size={20} strokeWidth={2} />
               </div>
@@ -169,7 +169,7 @@ export default function OwnerDashboard() {
           /* Total Personally Collected by Admin */
           <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
-              <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي ما قمت بتحصيله</span>
+              <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي الاشتراكات</span>
               <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
                 <TrendingUp size={20} strokeWidth={2} />
               </div>
