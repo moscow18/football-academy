@@ -145,89 +145,47 @@ export default function OwnerDashboard() {
           </div>
         </div>
 
-        {profile?.role === 'owner' && (
-          <>
-            {/* Net Profit */}
-            <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">صافي الربح ({formatMonth(currentMonth)})</span>
-                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <TrendingUp size={20} strokeWidth={2} />
-                </div>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
-                  {stats.netProfit.toLocaleString('en-US')}
-                </h3>
-                <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
-              </div>
-              <div className="mt-3 flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-400 font-arabic">بعد خصم إجمالي المصروفات</span>
-              </div>
+        {/* Net Profit */}
+        <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">صافي الربح ({formatMonth(currentMonth)})</span>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <TrendingUp size={20} strokeWidth={2} />
             </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
+              {stats.netProfit.toLocaleString('en-US')}
+            </h3>
+            <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-400 font-arabic">
+              {profile?.role === 'owner' ? 'بعد خصم إجمالي المصروفات' : 'بعد خصم مصروفات ورواتب الفرع'}
+            </span>
+          </div>
+        </div>
 
-            {/* Total Collected */}
-            <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي الاشتراكات</span>
-                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <TrendingUp size={20} strokeWidth={2} />
-                </div>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
-                  {stats.totalCollected.toLocaleString('en-US')}
-                </h3>
-                <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
-              </div>
-              <div className="mt-3 flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي قيمة اشتراكات اللاعبين الكلية</span>
-              </div>
+        {/* Total Collected */}
+        <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي الاشتراكات</span>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <TrendingUp size={20} strokeWidth={2} />
             </div>
-          </>
-        )}
-
-        {profile?.role === 'admin' && (
-          <>
-            {/* Expected Subscriptions by Branch (Admin) */}
-            <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي الاشتراكات</span>
-                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <TrendingUp size={20} strokeWidth={2} />
-                </div>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
-                  {stats.totalCollected.toLocaleString('en-US')}
-                </h3>
-                <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
-              </div>
-              <div className="mt-3 flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي قيمة اشتراكات اللاعبين للفرع</span>
-              </div>
-            </div>
-
-            {/* Total Collected Payments (Admin) */}
-            <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">المبلغ المحصل</span>
-                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <TrendingUp size={20} strokeWidth={2} />
-                </div>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
-                  {stats.actualCollected.toLocaleString('en-US')}
-                </h3>
-                <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
-              </div>
-              <div className="mt-3 flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-400 font-arabic">المبالغ المدفوعة والمحصلة بالفعل لفرعه</span>
-              </div>
-            </div>
-          </>
-        )}
+          </div>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
+              {stats.totalCollected.toLocaleString('en-US')}
+            </h3>
+            <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-400 font-arabic">
+              {profile?.role === 'owner' ? 'إجمالي قيمة اشتراكات اللاعبين الكلية' : 'إجمالي قيمة اشتراكات اللاعبين للفرع'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Main Content Grid */}
