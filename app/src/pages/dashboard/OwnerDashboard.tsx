@@ -11,6 +11,7 @@ interface DashboardStats {
   activePlayers: number;
   totalDebt: number;
   totalCollected: number;
+  actualCollected: number;
   netProfit: number;
   revenueTrend: any[];
   recentPlayers: any[];
@@ -70,25 +71,24 @@ export default function OwnerDashboard() {
       }
       const totalDebt = debtListData ? debtListData.reduce((sum: number, d: any) => sum + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0) : 0;
 
-      let totalCollected = 0;
-      if (profile?.role === 'admin') {
-        const { data: adminPaymentsData, error: adminPaymentsError } = await supabase
-          .from('payments')
-          .select('amount')
-          .eq('recorded_by', profile.id);
-        if (adminPaymentsError) {
-          console.error('OwnerDashboard: error loading admin payments:', adminPaymentsError);
-        } else if (adminPaymentsData) {
-          totalCollected = adminPaymentsData.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
-        }
-      } else {
-        let pq = supabase.from('players').select('fee_amount, fee_amount_periodic').eq('status', 'active');
-        if (branchFilter) pq = pq.eq('branch_id', branchFilter);
-        const { data: playersListData, error: playersListError } = await pq;
-        if (playersListError) {
-          console.error('OwnerDashboard: error loading active players fees:', playersListError);
-        }
-        totalCollected = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0) + Number(p.fee_amount_periodic || 0), 0) : 0;
+      // 1. Expected Subscription Fees (from active players list)
+      let pq = supabase.from('players').select('fee_amount, fee_amount_periodic').eq('status', 'active');
+      if (branchFilter) pq = pq.eq('branch_id', branchFilter);
+      const { data: playersListData, error: playersListError } = await pq;
+      if (playersListError) {
+        console.error('OwnerDashboard: error loading active players fees:', playersListError);
+      }
+      const totalCollected = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0) + Number(p.fee_amount_periodic || 0), 0) : 0;
+
+      // 2. Actual Collected Payments (from payments table)
+      let actualCollected = 0;
+      let pqPayments = supabase.from('payments').select('amount');
+      if (branchFilter) pqPayments = pqPayments.eq('branch_id', branchFilter);
+      const { data: paymentsListData, error: paymentsListError } = await pqPayments;
+      if (paymentsListError) {
+        console.error('OwnerDashboard: error loading payments:', paymentsListError);
+      } else if (paymentsListData) {
+        actualCollected = paymentsListData.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
       }
 
       let recent = recentPlayersData || [];
@@ -100,6 +100,7 @@ export default function OwnerDashboard() {
         activePlayers,
         totalDebt,
         totalCollected,
+        actualCollected,
         netProfit: totalNetProfit,
         revenueTrend: trendData || [],
         recentPlayers: recent,
@@ -124,7 +125,7 @@ export default function OwnerDashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className={`grid grid-cols-1 ${profile?.role === 'owner' ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6`}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* Active Players */}
         <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
@@ -180,31 +181,52 @@ export default function OwnerDashboard() {
                 <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
               </div>
               <div className="mt-3 flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي قيمة اشتراكات اللاعبين</span>
+                <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي قيمة اشتراكات اللاعبين الكلية</span>
               </div>
             </div>
           </>
         )}
 
         {profile?.role === 'admin' && (
-          /* Total Personally Collected by Admin */
-          <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي الاشتراكات</span>
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                <TrendingUp size={20} strokeWidth={2} />
+          <>
+            {/* Expected Subscriptions by Branch (Admin) */}
+            <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-4">
+                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي الاشتراكات</span>
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <TrendingUp size={20} strokeWidth={2} />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
+                  {stats.totalCollected.toLocaleString('en-US')}
+                </h3>
+                <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
+              </div>
+              <div className="mt-3 flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي قيمة اشتراكات اللاعبين للفرع</span>
               </div>
             </div>
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
-                {stats.totalCollected.toLocaleString('en-US')}
-              </h3>
-              <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
+
+            {/* Total Collected Payments (Admin) */}
+            <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-4">
+                <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">المبلغ المحصل</span>
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <TrendingUp size={20} strokeWidth={2} />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
+                  {stats.actualCollected.toLocaleString('en-US')}
+                </h3>
+                <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
+              </div>
+              <div className="mt-3 flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-400 font-arabic">المبالغ المدفوعة والمحصلة بالفعل لفرعه</span>
+              </div>
             </div>
-            <div className="mt-3 flex items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-400 font-arabic">المدفوعات المسجلة بواسطتك</span>
-            </div>
-          </div>
+          </>
         )}
       </div>
 
