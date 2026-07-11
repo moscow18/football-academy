@@ -7,6 +7,7 @@ import { toISODate, buildWhatsAppLink, lateArrivalMessage } from '../../lib/util
 import { CheckCircle2, Clock, XCircle, MessageCircle, Save, Users, Calendar, ClipboardList } from 'lucide-react';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import type { Group, Player, AttendanceStatus } from '../../lib/types';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 
 interface PlayerAttendance {
   player: Player;
@@ -73,6 +74,9 @@ export default function AttendancePage() {
   }, [selectedGroup, date]);
 
   useEffect(() => { loadAttendance(); }, [loadAttendance]);
+
+  // ⚡ Realtime: auto-refresh when attendance changes
+  useRealtimeRefresh(['attendance'], loadAttendance);
 
   function setStatus(playerIndex: number, status: AttendanceStatus) {
     setPlayerRows(prev => prev.map((row, i) =>

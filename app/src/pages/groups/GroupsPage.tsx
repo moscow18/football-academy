@@ -6,6 +6,7 @@ import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import { Users, Edit2, Trash2, Clock, Search } from 'lucide-react';
 import { BranchBadge } from '../../components/ui/Badge';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 
 interface Group {
   id: string;
@@ -82,6 +83,9 @@ export default function GroupsPage() {
   }, [branchFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // ⚡ Realtime: auto-refresh when groups or users table changes
+  useRealtimeRefresh(['groups', 'users'], loadData);
 
   function openAddForm() {
     setEditingGroup(null);

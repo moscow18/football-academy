@@ -6,6 +6,7 @@ import { useBranch } from '../../contexts/BranchContext';
 import { formatMoney, buildWhatsAppLink, debtReminderMessage, renewalReminderMessage, formatDate } from '../../lib/utils';
 import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import type { DebtItem, Group } from '../../lib/types';
 
 export default function PeriodicSubscriptionsPage() {
@@ -25,23 +26,26 @@ export default function PeriodicSubscriptionsPage() {
     setGroups(data || []);
   }, [branchFilter]);
 
-  async function loadData() {
-    setLoading(true);
+  const loadData = useCallback(async () => {
+    if (initialLoading) setLoading(true);
     const { data } = await supabase.rpc('rpc_debt_list', {
       p_branch_id: branchFilter || null,
     });
     setDebts((data as DebtItem[]) || []);
     setLoading(false);
     setInitialLoading(false);
-  }
+  }, [branchFilter]);
 
   useEffect(() => {
     loadData();
     loadGroups();
-  }, [branchFilter, loadGroups]);
+  }, [branchFilter, loadGroups, loadData]);
 
-  // Filter only periodic (league) players (payment_type = 'quarterly')
-  const leaguePlayers = debts.filter(d => d.payment_type === 'quarterly');
+  // ⚡ Realtime: auto-refresh when players or payments change
+  useRealtimeRefresh(['players', 'payments'], loadData);
+
+  // Filter periodic (league) players: payment_type = 'quarterly' OR has a non-zero periodic fee
+  const leaguePlayers = debts.filter(d => d.payment_type === 'quarterly' || Number(d.fee_amount_periodic) > 0);
 
   // Dynamically extract unique birth years
   const birthYears = Array.from(new Set(
@@ -58,11 +62,10 @@ export default function PeriodicSubscriptionsPage() {
     return true;
   });
 
-  // Calculate stats for filtered data
-  const totalPaid = filteredData.reduce((s, d) => s + Number(d.total_paid || 0), 0);
-  const totalDebt = filteredData.reduce((s, d) => s + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0);
-  const totalExpected = filteredData.reduce((s, d) => s + Number(d.total_expected || 0), 0);
-  const debtorsCount = filteredData.filter(d => Number(d.debt) > 0).length;
+  // Calculate stats — LEAGUE ONLY (no monthly fees included)
+  const totalExpectedPeriodic = filteredData.reduce((s, d) => s + Number(d.total_expected_periodic || 0), 0);
+  const totalDebtPeriodic = filteredData.reduce((s, d) => s + Number(d.debt_periodic || 0), 0);
+  const debtorsCount = filteredData.filter(d => Number(d.debt_periodic || 0) > 0).length;
 
   function exportToExcel() {
     const wsData = filteredData.map(d => ({
@@ -72,10 +75,9 @@ export default function PeriodicSubscriptionsPage() {
       'الفرع': d.branch_name,
       'المجموعة/الفريق': d.group_name || 'بدون مجموعة',
       'قيمة الاشتراك الدوري': d.fee_amount_periodic,
-      'الأشهر المسجلة': d.months_enrolled,
-      'إجمالي المتوقع': d.total_expected,
-      'إجمالي المدفوع': d.total_paid,
-      'المديونية': d.debt,
+      'عدد الأرباع': Math.ceil(d.months_enrolled / 3),
+      'إجمالي المتوقع (دوري)': d.total_expected_periodic,
+      'مديونية الدوري': d.debt_periodic,
       'موعد التجديد': d.next_payment_date ? formatDate(d.next_payment_date) : '—',
     }));
     const ws = XLSX.utils.json_to_sheet(wsData);
@@ -88,24 +90,24 @@ export default function PeriodicSubscriptionsPage() {
 
   return (
     <div className={`transition-opacity duration-200 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
-      {/* Summary */}
+      {/* Summary — LEAGUE ONLY */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5 shadow-sm flex flex-col gap-5 animate-fade-in">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full">
           <div className="bg-emerald-50 px-4 py-3 rounded-lg border border-emerald-100">
             <div className="text-xs text-emerald-700 font-bold mb-1 font-arabic">عدد لاعبي الدوري</div>
             <div className="text-xl font-extrabold text-emerald-700 tabular-nums">{filteredData.length} <span className="text-xs font-medium font-arabic">لاعب</span></div>
           </div>
-          <div className="bg-blue-50 px-4 py-3 rounded-lg border border-blue-100">
-            <div className="text-xs text-blue-700 font-bold mb-1 font-arabic">إجمالي المحصل للدوري</div>
-            <div className="text-xl font-extrabold text-blue-700 tabular-nums">{formatMoney(totalPaid)} <span className="text-xs font-medium font-arabic">ج.م</span></div>
-          </div>
           <div className="bg-amber-50 px-4 py-3 rounded-lg border border-amber-100">
-            <div className="text-xs text-amber-700 font-bold mb-1 font-arabic">إجمالي المتوقع للدوري</div>
-            <div className="text-xl font-extrabold text-amber-700 tabular-nums">{formatMoney(totalExpected)} <span className="text-xs font-medium font-arabic">ج.م</span></div>
+            <div className="text-xs text-amber-700 font-bold mb-1 font-arabic">إجمالي المتوقع (دوري فقط)</div>
+            <div className="text-xl font-extrabold text-amber-700 tabular-nums">{formatMoney(totalExpectedPeriodic)} <span className="text-xs font-medium font-arabic">ج.م</span></div>
           </div>
           <div className="bg-red-50 px-4 py-3 rounded-lg border border-red-100">
-            <div className="text-xs text-red-700 font-bold mb-1 font-arabic">المديونيات المتبقية</div>
-            <div className="text-xl font-extrabold text-red-600 tabular-nums">{formatMoney(totalDebt)} <span className="text-xs font-medium font-arabic">ج.م</span></div>
+            <div className="text-xs text-red-700 font-bold mb-1 font-arabic">مديونية الدوري</div>
+            <div className="text-xl font-extrabold text-red-600 tabular-nums">{formatMoney(totalDebtPeriodic)} <span className="text-xs font-medium font-arabic">ج.م</span></div>
+          </div>
+          <div className="bg-blue-50 px-4 py-3 rounded-lg border border-blue-100">
+            <div className="text-xs text-blue-700 font-bold mb-1 font-arabic">لاعبين بمديونية دوري</div>
+            <div className="text-xl font-extrabold text-blue-700 tabular-nums">{debtorsCount} <span className="text-xs font-medium font-arabic">لاعب</span></div>
           </div>
         </div>
 
@@ -172,11 +174,10 @@ export default function PeriodicSubscriptionsPage() {
                   <th>مواليد</th>
                   {!branchFilter && <th>الفرع</th>}
                   <th>المجموعة</th>
-                  <th>قيمة الاشتراك</th>
-                  <th>أشهر الاشتراك</th>
-                  <th>المتوقع</th>
-                  <th>المدفوع</th>
-                  <th>المديونية</th>
+                  <th>قيمة الاشتراك الدوري</th>
+                  <th>عدد الأرباع</th>
+                  <th>المتوقع (دوري)</th>
+                  <th>مديونية الدوري</th>
                   <th>موعد التجديد</th>
                   <th>إجراء</th>
                 </tr>
@@ -194,18 +195,17 @@ export default function PeriodicSubscriptionsPage() {
                     {!branchFilter && <td><BranchBadge branchId={d.branch_id} branchName={d.branch_name} /></td>}
                     <td className="text-slate-600 text-sm">{d.group_name || '—'}</td>
                     <td className="tabular-data font-bold text-emerald-700">{formatMoney(d.fee_amount_periodic)}</td>
-                    <td className="tabular-data text-center">{d.months_enrolled}</td>
-                    <td className="tabular-data">{formatMoney(d.total_expected)}</td>
-                    <td className="tabular-data text-emerald-600">{formatMoney(d.total_paid)}</td>
-                    <td className={`tabular-data font-bold ${Number(d.debt) > 0 ? 'text-red-600' : 'text-slate-400'}`}>
-                      {Number(d.debt) > 0 ? formatMoney(d.debt) : '0'}
+                    <td className="tabular-data text-center">{Math.ceil(d.months_enrolled / 3)}</td>
+                    <td className="tabular-data">{formatMoney(d.total_expected_periodic)}</td>
+                    <td className={`tabular-data font-bold ${Number(d.debt_periodic) > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                      {Number(d.debt_periodic) > 0 ? formatMoney(d.debt_periodic) : '0'}
                     </td>
                     <td className="text-sm font-bold text-slate-800">{formatDate(d.next_payment_date)}</td>
                     <td>
                       <div className="flex gap-2 items-center flex-wrap">
-                        {Number(d.debt) > 0 && (d.parent_phone || d.phone) && (
+                        {Number(d.debt_periodic) > 0 && (d.parent_phone || d.phone) && (
                           <a
-                            href={buildWhatsAppLink(d.parent_phone || d.phone || '', debtReminderMessage(d.player_name, Number(d.debt), d.next_payment_date))}
+                            href={buildWhatsAppLink(d.parent_phone || d.phone || '', debtReminderMessage(d.player_name, Number(d.debt_periodic), d.next_payment_date))}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded-full text-xs font-bold hover:bg-red-600 transition-colors no-underline whitespace-nowrap"

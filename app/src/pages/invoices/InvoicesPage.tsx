@@ -7,6 +7,7 @@ import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import type { Invoice } from '../../lib/types';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 
 export default function InvoicesPage() {
   const { branchFilter, branches } = useBranch();
@@ -33,6 +34,9 @@ export default function InvoicesPage() {
   }, [branchFilter]);
 
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
+
+  // ⚡ Realtime: auto-refresh when invoices changes
+  useRealtimeRefresh(['invoices'], loadInvoices);
 
   async function generatePDF(inv: Invoice) {
     const el = document.getElementById(`receipt-html-${inv.id}`);

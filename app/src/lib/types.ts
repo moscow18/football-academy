@@ -264,6 +264,13 @@ export interface DebtItem {
   total_expected: number;
   total_paid: number;
   debt: number;
+  // Separated monthly calculations
+  total_expected_monthly: number;
+  debt_monthly: number;
+  // Separated periodic (league) calculations
+  total_expected_periodic: number;
+  debt_periodic: number;
+  // Dates
   last_payment_date: string | null;
   next_payment_date: string | null;
 }

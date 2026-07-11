@@ -8,6 +8,7 @@ import { Search, Plus, Download, Edit2, Trash2, Users } from 'lucide-react';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import type { Player, Group } from '../../lib/types';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import * as XLSX from 'xlsx';
 
 const PAGE_SIZE = 50;
@@ -115,6 +116,9 @@ export default function PlayersPage() {
   }, [search]);
 
   useEffect(() => { loadPlayers(); }, [loadPlayers]);
+
+  // ⚡ Realtime: auto-refresh when players change
+  useRealtimeRefresh(['players'], loadPlayers);
 
   useEffect(() => { 
     setPage(0); 

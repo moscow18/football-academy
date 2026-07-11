@@ -8,6 +8,7 @@ import { BranchBadge } from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import { Users } from 'lucide-react';
 import type { Coach, CoachAdvance, CoachSalaryPayment } from '../../lib/types';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 
 export default function CoachesPage() {
   const { branchFilter } = useBranch();
@@ -58,18 +59,32 @@ export default function CoachesPage() {
     setLoading(false);
   }, [branchFilter]);
 
-  useEffect(() => { loadCoaches(); }, [loadCoaches]);
-
-  async function openCoachDetail(coach: Coach) {
-    setSelectedCoach(coach);
+  const loadCoachDetails = useCallback(async (coachId: string) => {
     // Load advances
     const { data: adv } = await supabase.from('coach_advances')
-      .select('*').eq('coach_id', coach.user_id).order('advance_date', { ascending: false });
+      .select('*').eq('coach_id', coachId).order('advance_date', { ascending: false });
     setAdvances(adv || []);
     // Load salary payments
     const { data: sal } = await supabase.from('coach_salary_payments')
-      .select('*').eq('coach_id', coach.user_id).order('payment_date', { ascending: false });
+      .select('*').eq('coach_id', coachId).order('payment_date', { ascending: false });
     setSalaryPayments(sal || []);
+  }, []);
+
+  const refreshAll = useCallback(() => {
+    loadCoaches();
+    if (selectedCoach) {
+      loadCoachDetails(selectedCoach.user_id);
+    }
+  }, [loadCoaches, selectedCoach, loadCoachDetails]);
+
+  useEffect(() => { loadCoaches(); }, [loadCoaches]);
+
+  // ⚡ Realtime: auto-refresh coaches, advances, and salary payments
+  useRealtimeRefresh(['coaches', 'coach_advances', 'coach_salary_payments'], refreshAll);
+
+  async function openCoachDetail(coach: Coach) {
+    setSelectedCoach(coach);
+    loadCoachDetails(coach.user_id);
   }
 
   async function addAdvance() {

@@ -10,6 +10,7 @@ import Modal from '../../components/ui/Modal';
 import type { Expense, ExpenseCategory } from '../../lib/types';
 import { EXPENSE_CATEGORY_LABELS } from '../../lib/types';
 import { TrendingDown } from 'lucide-react';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 
 export default function ExpensesPage() {
   const { branchFilter, branches } = useBranch();
@@ -43,6 +44,9 @@ export default function ExpensesPage() {
   }, [branchFilter]);
 
   useEffect(() => { loadExpenses(); }, [loadExpenses]);
+
+  // ⚡ Realtime: auto-refresh when expenses changes
+  useRealtimeRefresh(['expenses'], loadExpenses);
 
   async function deleteExpense(id: string) {
     if (!window.confirm('هل أنت متأكد من مسح هذا المصروف نهائياً؟')) return;

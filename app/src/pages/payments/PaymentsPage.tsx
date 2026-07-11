@@ -8,6 +8,7 @@ import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import type { Payment, Player } from '../../lib/types';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { FileText, Users, X, Search } from 'lucide-react';
@@ -105,6 +106,9 @@ export default function PaymentsPage() {
   }, [debouncedSearchPlayer, branchFilter]);
 
   useEffect(() => { loadPayments(); }, [loadPayments]);
+
+  // ⚡ Realtime: auto-refresh when payments change
+  useRealtimeRefresh(['payments'], loadPayments);
 
   // Search players for payment form
   useEffect(() => {

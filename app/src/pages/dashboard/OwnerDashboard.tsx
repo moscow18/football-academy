@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatMonth } from '../../lib/utils';
 import { Users, TrendingUp, Activity } from 'lucide-react';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 interface DashboardStats {
   activePlayers: number;
   totalDebt: number;
-  totalCollected: number;
+  totalCollectedMonthly: number;
+  totalCollectedPeriodic: number;
   actualCollected: number;
   netProfit: number;
   revenueTrend: any[];
@@ -26,14 +28,12 @@ export default function OwnerDashboard() {
   // Use real current month dynamically
   const currentMonth = new Date().toISOString().slice(0, 7);
 
-  useEffect(() => {
-    loadDashboard();
-  }, [selectedBranchId]);
-
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
       const branchFilter = selectedBranchId ? selectedBranchId : null;
+
+
 
       let playersQuery = supabase.from('players').select('id', { count: 'exact', head: true }).eq('status', 'active');
       if (branchFilter) {
@@ -71,14 +71,15 @@ export default function OwnerDashboard() {
       }
       const totalDebt = debtListData ? debtListData.reduce((sum: number, d: any) => sum + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0) : 0;
 
-      // 1. Expected Subscription Fees (from active players list)
+      // 1. Expected Subscription Fees — SEPARATED monthly vs periodic
       let pq = supabase.from('players').select('fee_amount, fee_amount_periodic').eq('status', 'active');
       if (branchFilter) pq = pq.eq('branch_id', branchFilter);
       const { data: playersListData, error: playersListError } = await pq;
       if (playersListError) {
         console.error('OwnerDashboard: error loading active players fees:', playersListError);
       }
-      const totalCollected = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0) + Number(p.fee_amount_periodic || 0), 0) : 0;
+      const totalCollectedMonthly = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0), 0) : 0;
+      const totalCollectedPeriodic = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount_periodic || 0), 0) : 0;
 
       // 2. Actual Collected Payments (from payments table)
       let actualCollected = 0;
@@ -99,7 +100,8 @@ export default function OwnerDashboard() {
       setStats({
         activePlayers,
         totalDebt,
-        totalCollected,
+        totalCollectedMonthly,
+        totalCollectedPeriodic,
         actualCollected,
         netProfit: totalNetProfit,
         revenueTrend: trendData || [],
@@ -109,7 +111,14 @@ export default function OwnerDashboard() {
       console.error('Dashboard load error:', err);
     }
     setLoading(false);
-  }
+  }, [selectedBranchId, currentMonth]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  // ⚡ Realtime: auto-refresh when data changes
+  useRealtimeRefresh(['players', 'payments', 'expenses'], loadDashboard);
 
   if (loading || !stats) return <PageLoading />;
 
@@ -166,24 +175,63 @@ export default function OwnerDashboard() {
           </div>
         </div>
 
-        {/* Total Collected */}
+        {/* Monthly Subscriptions */}
         <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي الاشتراكات</span>
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">الاشتراكات الشهرية</span>
             <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
               <TrendingUp size={20} strokeWidth={2} />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
             <h3 className="text-4xl font-extrabold text-emerald-800 font-tabular">
-              {stats.totalCollected.toLocaleString('en-US')}
+              {stats.totalCollectedMonthly.toLocaleString('en-US')}
             </h3>
             <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
           </div>
           <div className="mt-3 flex items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-400 font-arabic">
-              {profile?.role === 'owner' ? 'إجمالي قيمة اشتراكات اللاعبين الكلية' : 'إجمالي قيمة اشتراكات اللاعبين للفرع'}
-            </span>
+            <span className="text-xs font-bold text-slate-400 font-arabic">اشتراكات شهرية فقط (بدون الدوري)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Second row: Periodic + Actual Collected */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Periodic (League) Subscriptions */}
+        <div className="bg-white border border-slate-200 border-r-4 border-r-blue-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">اشتراكات الدوري</span>
+            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
+              <TrendingUp size={20} strokeWidth={2} />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-4xl font-extrabold text-blue-800 font-tabular">
+              {stats.totalCollectedPeriodic.toLocaleString('en-US')}
+            </h3>
+            <span className="text-sm font-bold text-blue-700 font-arabic">ج.م</span>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي اشتراكات الدوري فقط</span>
+          </div>
+        </div>
+
+        {/* Actual Collected */}
+        <div className="bg-white border border-slate-200 border-r-4 border-r-amber-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي المحصل فعلياً</span>
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+              <TrendingUp size={20} strokeWidth={2} />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-4xl font-extrabold text-amber-800 font-tabular">
+              {stats.actualCollected.toLocaleString('en-US')}
+            </h3>
+            <span className="text-sm font-bold text-amber-700 font-arabic">ج.م</span>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي المدفوعات المسجلة</span>
           </div>
         </div>
       </div>

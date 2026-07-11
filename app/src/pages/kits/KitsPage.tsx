@@ -8,6 +8,7 @@ import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import type { KitItem, KitCategory, Player } from '../../lib/types';
 import { KIT_CATEGORY_LABELS } from '../../lib/types';
+import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 
 export default function KitsPage() {
   const { branchFilter, branches } = useBranch();
@@ -52,6 +53,9 @@ export default function KitsPage() {
   }, [branchFilter]);
 
   useEffect(() => { loadItems(); }, [loadItems]);
+
+  // ⚡ Realtime: auto-refresh when kit_items changes
+  useRealtimeRefresh(['kit_items'], loadItems);
 
   // Player search for sell
   useEffect(() => {
