@@ -5,11 +5,15 @@ import { formatDate, formatMoney, calculateAge, buildWhatsAppLink, debtReminderM
 import { StatusBadge } from '../../components/ui/Badge';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
 import type { Player, Payment, Attendance, KitPurchase } from '../../lib/types';
+import { useToast } from '../../contexts/ToastContext';
+
 
 export default function PlayerProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [player, setPlayer] = useState<Player | null>(null);
+
   const [payments, setPayments] = useState<Payment[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [kitPurchases, setKitPurchases] = useState<KitPurchase[]>([]);
@@ -71,6 +75,15 @@ export default function PlayerProfile() {
     setLoading(false);
   }
 
+  async function deletePlayer() {
+    if (!confirm('⚠️ تحذير: هل أنت متأكد من حذف هذا اللاعب تماماً من النظام؟\nسيؤدي هذا إلى حذف اللاعب وجميع سجلات الحضور والمدفوعات والفواتير والأطقم المرتبطة به نهائياً!')) return;
+    const { error } = await supabase.from('players').delete().eq('id', id!);
+    if (error) { toast('error', `خطأ في حذف اللاعب: ${error.message}`); return; }
+    toast('success', 'تم حذف اللاعب وجميع سجلاته بنجاح');
+    navigate('/players');
+  }
+
+
   if (loading || !player) return <PageLoading />;
 
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
@@ -122,8 +135,15 @@ export default function PlayerProfile() {
               <h3 className="text-xl font-bold">{player.full_name}</h3>
               <p className="text-emerald-200 text-sm">{player.player_code} — {player.group_name || 'بدون مجموعة'} — {player.branch_name}</p>
             </div>
-            <div className="mr-auto">
+            <div className="mr-auto flex items-center gap-3">
               <StatusBadge status={player.status} />
+              <button 
+                onClick={deletePlayer}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 font-arabic shadow-sm"
+                title="حذف اللاعب نهائياً"
+              >
+                🗑️ حذف اللاعب
+              </button>
             </div>
           </div>
         </div>

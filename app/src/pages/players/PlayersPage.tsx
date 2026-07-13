@@ -231,13 +231,14 @@ export default function PlayersPage() {
     loadPlayers();
   }
 
-  async function deactivatePlayer(id: string) {
-    if (!confirm('هل أنت متأكد من تعطيل هذا اللاعب؟')) return;
-    const { error } = await supabase.from('players').update({ status: 'inactive' }).eq('id', id);
-    if (error) { toast('error', 'خطأ في تعطيل اللاعب'); return; }
-    toast('success', 'تم تعطيل اللاعب');
+  async function deletePlayer(id: string) {
+    if (!confirm('⚠️ تحذير: هل أنت متأكد من حذف هذا اللاعب تماماً من النظام؟\nسيؤدي هذا إلى حذف اللاعب وجميع سجلات الحضور والمدفوعات والفواتير والأطقم المرتبطة به نهائياً!')) return;
+    const { error } = await supabase.from('players').delete().eq('id', id);
+    if (error) { toast('error', `خطأ في حذف اللاعب: ${error.message}`); return; }
+    toast('success', 'تم حذف اللاعب وجميع بياناته بنجاح');
     loadPlayers();
   }
+
 
   function exportExcel() {
     const wsData = players.map(p => ({
@@ -439,7 +440,7 @@ export default function PlayersPage() {
                         <button onClick={() => openEditForm(p)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
                           <Edit2 size={18} />
                         </button>
-                        <button onClick={() => deactivatePlayer(p.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="تعطيل">
+                        <button onClick={() => deletePlayer(p.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف نهائي">
                           <Trash2 size={18} />
                         </button>
                       </div>
@@ -491,7 +492,7 @@ export default function PlayersPage() {
                     <button onClick={() => openEditForm(p)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
                       <Edit2 size={16} />
                     </button>
-                    <button onClick={() => deactivatePlayer(p.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="تعطيل">
+                    <button onClick={() => deletePlayer(p.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف نهائي">
                       <Trash2 size={16} />
                     </button>
                   </div>
