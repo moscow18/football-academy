@@ -10,7 +10,7 @@ import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import type { DebtItem, Group } from '../../lib/types';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, Edit2 } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
   { id: 'saturday', name: 'السبت' },
@@ -45,6 +45,7 @@ export default function PeriodicSubscriptionsPage() {
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<any>(null);
 
   // Forms State
   const [playerForm, setPlayerForm] = useState({
@@ -149,6 +150,7 @@ export default function PeriodicSubscriptionsPage() {
   );
 
   const openAddPlayerForm = () => {
+    setEditingPlayer(null);
     setPlayerForm({
       full_name: '',
       branch_id: branchFilter || (branches[0]?.id || ''),
@@ -161,6 +163,31 @@ export default function PeriodicSubscriptionsPage() {
       parent_phone: '',
       notes: '',
     });
+    setShowPlayerModal(true);
+  };
+
+  const handleEditPlayer = async (playerId: string) => {
+    setLoading(true);
+    const { data, error } = await supabase.from('players').select('*').eq('id', playerId).single();
+    setLoading(false);
+    if (error || !data) {
+      toast('error', 'فشل في تحميل بيانات اللاعب');
+      return;
+    }
+    
+    setPlayerForm({
+      full_name: data.full_name,
+      branch_id: data.branch_id,
+      date_of_birth: data.date_of_birth || '',
+      birth_year: data.date_of_birth ? data.date_of_birth.substring(0, 4) : '2016',
+      registration_date: data.registration_date || new Date().toISOString().split('T')[0],
+      group_id: data.group_id || '',
+      fee_amount_periodic: data.fee_amount_periodic?.toString() || '0',
+      phone: data.phone || '',
+      parent_phone: data.parent_phone || '',
+      notes: data.notes || '',
+    });
+    setEditingPlayer(data);
     setShowPlayerModal(true);
   };
 
@@ -206,17 +233,34 @@ export default function PeriodicSubscriptionsPage() {
         phone: playerForm.phone || null,
         parent_phone: playerForm.parent_phone || null,
         notes: playerForm.notes || null,
-        status: 'active',
-        fee_amount: 0,
       };
 
-      const { error } = await supabase.from('players').insert(payload);
-      if (error) {
-        toast('error', `خطأ أثناء إضافة اللاعب: ${error.message}`);
-        return;
+      if (editingPlayer) {
+        const { error } = await supabase
+          .from('players')
+          .update(payload)
+          .eq('id', editingPlayer.id);
+
+        if (error) {
+          toast('error', `خطأ أثناء تعديل بيانات اللاعب: ${error.message}`);
+          return;
+        }
+        toast('success', 'تم تعديل بيانات اللاعب بنجاح');
+      } else {
+        const { error } = await supabase.from('players').insert({
+          ...payload,
+          status: 'active',
+          fee_amount: 0,
+        });
+
+        if (error) {
+          toast('error', `خطأ أثناء إضافة اللاعب: ${error.message}`);
+          return;
+        }
+        toast('success', 'تم إضافة اللاعب بنجاح للدوري');
       }
-      toast('success', 'تم إضافة اللاعب بنجاح للدوري');
       setShowPlayerModal(false);
+      setEditingPlayer(null);
       loadData();
     } catch (err: any) {
       toast('error', `خطأ: ${err.message || 'حدث خطأ غير متوقع'}`);
@@ -520,6 +564,13 @@ export default function PeriodicSubscriptionsPage() {
                     <td>
                       <div className="flex gap-2 items-center flex-wrap">
                         <button
+                          onClick={() => handleEditPlayer(d.player_id)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-xs font-bold transition-colors whitespace-nowrap cursor-pointer hover:scale-105 active:scale-100"
+                          title="تعديل بيانات اللاعب"
+                        >
+                          <Edit2 size={12} /> تعديل
+                        </button>
+                        <button
                           onClick={() => exportPlayerExcel(d.player_id, d)}
                           disabled={isExportingPlayer === d.player_id}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-bold transition-colors disabled:opacity-50 whitespace-nowrap cursor-pointer hover:scale-105 active:scale-100"
@@ -559,11 +610,11 @@ export default function PeriodicSubscriptionsPage() {
         </div>
       )}
 
-      {/* Add League Player Modal */}
+      {/* Add/Edit League Player Modal */}
       <Modal 
         isOpen={showPlayerModal} 
         onClose={() => setShowPlayerModal(false)} 
-        title="إضافة لاعب جديد للدوري" 
+        title={editingPlayer ? 'تعديل بيانات لاعب الدوري' : 'إضافة لاعب جديد للدوري'} 
         size="lg"
         footer={
           <>
@@ -572,7 +623,7 @@ export default function PeriodicSubscriptionsPage() {
               disabled={isSaving} 
               className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors cursor-pointer"
             >
-              {isSaving ? 'جاري الإضافة...' : 'إضافة اللاعب'}
+              {isSaving ? 'جاري الحفظ...' : editingPlayer ? 'حفظ التعديلات' : 'إضافة اللاعب'}
             </button>
             <button 
               onClick={() => setShowPlayerModal(false)} 
