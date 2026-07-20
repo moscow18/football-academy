@@ -34,24 +34,33 @@ export default function CoachesPage() {
   const loadCoaches = useCallback(async () => {
     setLoading(true);
     let q = supabase
-      .from('coaches')
-      .select('*, users(full_name, phone, branch_id, is_active, branches(name))');
+      .from('users')
+      .select('id, full_name, phone, branch_id, is_active, branches(name), coaches(*)');
     
-    const { data } = await q;
-    const mapped = (data || []).filter((c: Record<string, unknown>) => {
-      const user = c.users as Record<string, unknown>;
-      if (!user) return false;
-      if (branchFilter && user.branch_id !== branchFilter) return false;
-      return true;
-    }).map((c: Record<string, unknown>) => {
-      const user = c.users as Record<string, unknown>;
+    if (branchFilter) {
+      q = q.eq('branch_id', branchFilter);
+    }
+    q = q.eq('role', 'coach');
+
+    const { data, error } = await q;
+    if (error) {
+      console.error('Error loading coaches:', error);
+      setLoading(false);
+      return;
+    }
+
+    const mapped = (data || []).map((u: any) => {
+      const coachData = Array.isArray(u.coaches) ? u.coaches[0] : u.coaches;
       return {
-        ...c,
-        full_name: user?.full_name,
-        phone: user?.phone,
-        branch_id: user?.branch_id,
-        is_active: user?.is_active,
-        branch_name: (user?.branches as Record<string, string>)?.name,
+        user_id: u.id,
+        full_name: u.full_name,
+        phone: u.phone,
+        branch_id: u.branch_id,
+        is_active: u.is_active,
+        branch_name: u.branches?.name,
+        base_salary: Number(coachData?.base_salary || 0),
+        specialization: coachData?.specialization || 'مدرب',
+        hire_date: coachData?.hire_date || u.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       };
     }) as Coach[];
 
@@ -89,13 +98,14 @@ export default function CoachesPage() {
 
   async function addAdvance() {
     if (!advanceAmount || !selectedCoach) return;
+    const targetBranchId = selectedCoach.branch_id || branchFilter || null;
     const { error } = await supabase.from('coach_advances').insert({
       coach_id: selectedCoach.user_id,
-      branch_id: selectedCoach.branch_id,
+      branch_id: targetBranchId,
       amount: Number(advanceAmount),
       notes: advanceNotes || null,
     });
-    if (error) { toast('error', 'خطأ في تسجيل السلفة'); return; }
+    if (error) { toast('error', 'خطأ في تسجيل السلفة: ' + error.message); return; }
     toast('success', 'تم تسجيل السلفة');
     setShowAdvanceForm(false);
     setAdvanceAmount(''); setAdvanceNotes('');
@@ -104,13 +114,14 @@ export default function CoachesPage() {
 
   async function addSalaryPayment() {
     if (!salaryAmount || !selectedCoach) return;
+    const targetBranchId = selectedCoach.branch_id || branchFilter || null;
     const { error } = await supabase.from('coach_salary_payments').insert({
       coach_id: selectedCoach.user_id,
-      branch_id: selectedCoach.branch_id,
+      branch_id: targetBranchId,
       amount: Number(salaryAmount),
       payment_month: salaryMonth,
     });
-    if (error) { toast('error', 'خطأ في تسجيل الراتب'); return; }
+    if (error) { toast('error', 'خطأ في تسجيل الراتب: ' + error.message); return; }
     toast('success', 'تم تسجيل دفعة الراتب');
     setShowSalaryForm(false);
     setSalaryAmount('');
@@ -137,17 +148,18 @@ export default function CoachesPage() {
     });
 
     if (error) {
-      toast('error', 'حدث خطأ أثناء إضافة المدرب');
+      toast('error', 'حدث خطأ أثناء إضافة المدرب: ' + error.message);
       console.error(error);
       return;
     }
 
-    // Update specialization and salary
+    // Upsert specialization and salary
     if (data) {
-      await supabase.from('coaches').update({
-        specialization: newCoach.specialization,
+      await supabase.from('coaches').upsert({
+        user_id: data,
+        specialization: newCoach.specialization || null,
         base_salary: Number(newCoach.salary) || 0
-      }).eq('user_id', data);
+      });
     }
 
     toast('success', 'تم إضافة المدرب بنجاح');

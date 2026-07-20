@@ -132,19 +132,26 @@ AS $$
 $$;
 
 -- ================================================================
--- 3. (اختياري) تسوية الشهور القديمة لكل اللاعبين الحاليين حتى 20 يوليو 2026
--- شغل الكود التالي إذا أردت اعتبار جميع الشهور السابقة مدفوعة للجميع فوراً
+-- 4. إصلاح واستكمال بيانات ودفعات رواتب المدربين (بما فيها فرع رويال)
 -- ================================================================
 
-INSERT INTO payments (player_id, branch_id, amount, payment_date, method, period_covered, notes)
-SELECT 
-  d.player_id,
-  d.branch_id,
-  d.debt AS amount,
-  '2026-07-20'::date AS payment_date,
-  'cash'::payment_method AS method,
-  'تسوية الشهور القديمة حتى 20 يوليو 2026' AS period_covered,
-  'تصفية الشهور القديمة آلياً' AS notes
-FROM rpc_debt_list() d
-WHERE d.debt > 0;
+-- إضافة المدربين المفقودين في جدول coaches
+INSERT INTO coaches (user_id, base_salary, specialization)
+SELECT u.id, 0, 'مدرب'
+FROM users u
+WHERE u.role = 'coach'
+  AND NOT EXISTS (SELECT 1 FROM coaches c WHERE c.user_id = u.id)
+ON CONFLICT (user_id) DO NOTHING;
+
+-- ربط دفعات الرواتب والسلف بالفروع الصحيحة في حال كانت NULL
+UPDATE coach_salary_payments csp
+SET branch_id = u.branch_id
+FROM users u
+WHERE csp.coach_id = u.id AND (csp.branch_id IS NULL OR csp.branch_id != u.branch_id);
+
+UPDATE coach_advances ca
+SET branch_id = u.branch_id
+FROM users u
+WHERE ca.coach_id = u.id AND (ca.branch_id IS NULL OR ca.branch_id != u.branch_id);
+
 
