@@ -33,36 +33,42 @@ export default function CoachesPage() {
 
   const loadCoaches = useCallback(async () => {
     setLoading(true);
-    let q = supabase
-      .from('users')
-      .select('id, full_name, phone, branch_id, is_active, branches(name), coaches(*)');
     
-    if (branchFilter) {
-      q = q.eq('branch_id', branchFilter);
-    }
-    q = q.eq('role', 'coach');
+    // Fetch users with role='coach' and all coaches records in parallel
+    const [usersRes, coachesRes] = await Promise.all([
+      supabase
+        .from('users')
+        .select('id, full_name, phone, branch_id, is_active, created_at, branches(name)')
+        .eq('role', 'coach'),
+      supabase
+        .from('coaches')
+        .select('*')
+    ]);
 
-    const { data, error } = await q;
-    if (error) {
-      console.error('Error loading coaches:', error);
-      setLoading(false);
-      return;
-    }
+    const usersData = usersRes.data || [];
+    const coachesData = coachesRes.data || [];
 
-    const mapped = (data || []).map((u: any) => {
-      const coachData = Array.isArray(u.coaches) ? u.coaches[0] : u.coaches;
-      return {
-        user_id: u.id,
-        full_name: u.full_name,
-        phone: u.phone,
-        branch_id: u.branch_id,
-        is_active: u.is_active,
-        branch_name: u.branches?.name,
-        base_salary: Number(coachData?.base_salary || 0),
-        specialization: coachData?.specialization || 'مدرب',
-        hire_date: coachData?.hire_date || u.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-      };
-    }) as Coach[];
+    const coachMap = new Map<string, any>();
+    coachesData.forEach((c: any) => {
+      coachMap.set(c.user_id, c);
+    });
+
+    const mapped = usersData
+      .filter((u: any) => !branchFilter || u.branch_id === branchFilter)
+      .map((u: any) => {
+        const c = coachMap.get(u.id);
+        return {
+          user_id: u.id,
+          full_name: u.full_name,
+          phone: u.phone,
+          branch_id: u.branch_id,
+          is_active: u.is_active,
+          branch_name: u.branches?.name,
+          base_salary: Number(c?.base_salary || 0),
+          specialization: c?.specialization || 'مدرب',
+          hire_date: c?.hire_date || u.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+        };
+      }) as Coach[];
 
     setCoaches(mapped);
     setLoading(false);
