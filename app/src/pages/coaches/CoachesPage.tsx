@@ -174,6 +174,32 @@ export default function CoachesPage() {
     loadCoaches();
   }
 
+  // Edit Salary State
+  const [showEditSalary, setShowEditSalary] = useState(false);
+  const [editSalaryValue, setEditSalaryValue] = useState('');
+  const [editSpecialization, setEditSpecialization] = useState('');
+
+  const handleUpdateCoachSalary = async () => {
+    if (!selectedCoach) return;
+    const newSalary = Number(editSalaryValue) || 0;
+    
+    const { error } = await supabase.from('coaches').upsert({
+      user_id: selectedCoach.user_id,
+      base_salary: newSalary,
+      specialization: editSpecialization || selectedCoach.specialization || null
+    });
+
+    if (error) {
+      toast('error', 'حدث خطأ أثناء تحديث الراتب: ' + error.message);
+      return;
+    }
+
+    toast('success', 'تم تحديث الراتب الأساسي بنجاح');
+    setSelectedCoach(prev => prev ? { ...prev, base_salary: newSalary, specialization: editSpecialization || prev.specialization } : null);
+    setShowEditSalary(false);
+    loadCoaches();
+  };
+
   if (loading) return <PageLoading />;
 
   // Coach detail view
@@ -192,19 +218,42 @@ export default function CoachesPage() {
         {/* Profile header */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-5">
           <div className="p-6" style={{ background: 'linear-gradient(135deg, #14532d, #166534)' }}>
-            <div className="flex items-center gap-4 text-white">
-              <div className="w-14 h-14 bg-emerald-400/20 border-2 border-emerald-300 rounded-full flex items-center justify-center text-xl font-bold font-arabic overflow-hidden shrink-0">
-                {(selectedCoach.full_name || '👤').charAt(0)}
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-emerald-400/20 border-2 border-emerald-300 rounded-full flex items-center justify-center text-xl font-bold font-arabic overflow-hidden shrink-0">
+                  {(selectedCoach.full_name || '👤').charAt(0)}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">{selectedCoach.full_name}</h3>
+                  <p className="text-emerald-200 text-sm">{selectedCoach.specialization || 'مدرب'} — {selectedCoach.branch_name}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold">{selectedCoach.full_name}</h3>
-                <p className="text-emerald-200 text-sm">{selectedCoach.specialization} — {selectedCoach.branch_name}</p>
-              </div>
+              <button
+                onClick={() => {
+                  setEditSalaryValue(String(selectedCoach.base_salary));
+                  setEditSpecialization(selectedCoach.specialization || '');
+                  setShowEditSalary(true);
+                }}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold transition-all border border-white/20 flex items-center gap-1 cursor-pointer"
+              >
+                ✏️ تعديل بيانات الراتب
+              </button>
             </div>
           </div>
           <div className="grid grid-cols-3 divide-x divide-slate-100 rtl:divide-x-reverse">
-            <div className="p-4 text-center">
-              <div className="text-xl font-extrabold text-slate-700 tabular-nums">{formatMoney(selectedCoach.base_salary)}</div>
+            <div 
+              className="p-4 text-center cursor-pointer hover:bg-slate-50 transition-colors"
+              onClick={() => {
+                setEditSalaryValue(String(selectedCoach.base_salary));
+                setEditSpecialization(selectedCoach.specialization || '');
+                setShowEditSalary(true);
+              }}
+              title="انقر لتعديل الراتب الأساسي"
+            >
+              <div className="text-xl font-extrabold text-slate-700 tabular-nums flex items-center justify-center gap-1">
+                {formatMoney(selectedCoach.base_salary)}
+                <span className="text-xs text-emerald-600 font-normal">✏️</span>
+              </div>
               <div className="text-xs text-slate-500">الراتب الأساسي</div>
             </div>
             <div className="p-4 text-center">
@@ -221,6 +270,16 @@ export default function CoachesPage() {
         <div className="flex gap-3 mb-5">
           <button onClick={() => setShowAdvanceForm(true)} className="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold text-sm hover:bg-amber-600 transition-colors cursor-pointer">+ تسجيل سلفة</button>
           <button onClick={() => { setSalaryAmount(String(netDue > 0 ? netDue : selectedCoach.base_salary)); setShowSalaryForm(true); }} className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-colors cursor-pointer">💰 صرف الراتب</button>
+          <button 
+            onClick={() => {
+              setEditSalaryValue(String(selectedCoach.base_salary));
+              setEditSpecialization(selectedCoach.specialization || '');
+              setShowEditSalary(true);
+            }} 
+            className="px-4 py-2 bg-slate-700 text-white rounded-lg font-bold text-sm hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            ✏️ تعديل الراتب الأساسي
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -274,12 +333,41 @@ export default function CoachesPage() {
           </div>
         </Modal>
 
-        {/* Salary Modal */}
+        {/* Edit Base Salary Modal */}
+        <Modal isOpen={showEditSalary} onClose={() => setShowEditSalary(false)} title="تعديل الراتب الأساسي والتخصص" footer={
+          <><button onClick={handleUpdateCoachSalary} className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm cursor-pointer">حفظ التغييرات</button>
+            <button onClick={() => setShowEditSalary(false)} className="px-5 py-2 border border-slate-200 rounded-lg text-sm cursor-pointer">إلغاء</button></>
+        }>
+          <div className="space-y-4 font-[Cairo]">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">الراتب الأساسي (ج.م) *</label>
+              <input 
+                type="number" 
+                value={editSalaryValue} 
+                onChange={(e) => setEditSalaryValue(e.target.value)} 
+                className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none" 
+                placeholder="مثال: 3200"
+                dir="ltr" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">التخصص / المسمى الوظيفي</label>
+              <input 
+                value={editSpecialization} 
+                onChange={(e) => setEditSpecialization(e.target.value)} 
+                className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none" 
+                placeholder="مثال: مدرب حراس مرمى" 
+              />
+            </div>
+          </div>
+        </Modal>
+
+        {/* Salary Payment Modal */}
         <Modal isOpen={showSalaryForm} onClose={() => setShowSalaryForm(false)} title="صرف الراتب" footer={
           <><button onClick={addSalaryPayment} className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm cursor-pointer">صرف</button>
             <button onClick={() => setShowSalaryForm(false)} className="px-5 py-2 border border-slate-200 rounded-lg text-sm cursor-pointer">إلغاء</button></>
         }>
-          <div className="space-y-4">
+          <div className="space-y-4 font-[Cairo]">
             <div><label className="block text-sm font-semibold mb-1">المبلغ</label>
               <input type="number" value={salaryAmount} onChange={(e) => setSalaryAmount(e.target.value)} className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none" dir="ltr" /></div>
             <div><label className="block text-sm font-semibold mb-1">الشهر</label>
