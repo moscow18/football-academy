@@ -152,13 +152,15 @@ export default function SettingsPage() {
           {activeTab === 'branches' && (
             <div className="animate-fade-in">
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
-                <h2 className="text-xl font-bold text-slate-800">إدارة الفروع</h2>
+                <h2 className="text-xl font-bold text-slate-800">إدارة الفروع وتاريخ تقفيل الشهر</h2>
                 <button 
                   onClick={async () => {
                     const name = prompt('أدخل اسم الفرع الجديد:');
+                    const closingDayStr = prompt('أدخل يوم تقفيل الشهر (مثال: 20 أو 1):', '20');
                     if (name) {
-                      const { error } = await supabase.from('branches').insert({ name });
-                      if (error) alert('خطأ في إضافة الفرع');
+                      const closing_day = parseInt(closingDayStr || '1', 10) || 1;
+                      const { error } = await supabase.from('branches').insert({ name, closing_day });
+                      if (error) alert('خطأ في إضافة الفرع: ' + error.message);
                       else {
                         alert('تم إنشاء الفرع بنجاح');
                         supabase.from('branches').select('*').order('created_at').then(({ data }) => setBranches(data || []));
@@ -176,20 +178,44 @@ export default function SettingsPage() {
                   <thead className="bg-white border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-3 text-slate-500 font-bold text-sm">اسم الفرع</th>
+                      <th className="px-6 py-3 text-slate-500 font-bold text-sm">يوم تقفيل الشهر</th>
                       <th className="px-6 py-3 text-slate-500 font-bold text-sm">تاريخ الإنشاء</th>
                       <th className="px-6 py-3 text-slate-500 font-bold text-sm text-center">إجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {branches.length === 0 ? (
-                      <tr><td colSpan={3} className="px-6 py-4 text-center text-slate-500">لا يوجد فروع مسجلة. قم بإضافة فرع جديد.</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-4 text-center text-slate-500">لا يوجد فروع مسجلة. قم بإضافة فرع جديد.</td></tr>
                     ) : (
                       branches.map(b => (
                         <tr key={b.id} className="hover:bg-white transition-colors">
                           <td className="px-6 py-4 font-bold text-slate-800">{b.name}</td>
+                          <td className="px-6 py-4 font-semibold text-emerald-700 text-sm">
+                            يوم {b.closing_day ?? 1} في الشهر
+                          </td>
                           <td className="px-6 py-4 text-slate-500 text-sm">{b.created_at?.split('T')[0]}</td>
                           <td className="px-6 py-4 text-center">
-                            <button className="text-blue-600 font-bold text-sm hover:underline">تعديل</button>
+                            <button 
+                              onClick={async () => {
+                                const newDayStr = prompt(`تعديل يوم تقفيل الشهر لفرع (${b.name}):`, String(b.closing_day ?? 1));
+                                if (newDayStr !== null) {
+                                  const newDay = parseInt(newDayStr, 10);
+                                  if (isNaN(newDay) || newDay < 1 || newDay > 31) {
+                                    alert('يرجى إدخال يوم صحيح بين 1 و 31');
+                                    return;
+                                  }
+                                  const { error } = await supabase.from('branches').update({ closing_day: newDay }).eq('id', b.id);
+                                  if (error) alert('خطأ في التحديث: ' + error.message);
+                                  else {
+                                    alert('تم تحديث يوم تقفيل الشهر بنجاح');
+                                    supabase.from('branches').select('*').order('created_at').then(({ data }) => setBranches(data || []));
+                                  }
+                                }
+                              }}
+                              className="text-blue-600 font-bold text-sm hover:underline"
+                            >
+                              تعديل يوم التقفيل
+                            </button>
                           </td>
                         </tr>
                       ))

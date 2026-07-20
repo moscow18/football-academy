@@ -15,6 +15,7 @@ export interface Branch {
   address: string | null;
   phone: string | null;
   accent_color: string;
+  closing_day?: number;
   created_at: string;
 }
 

@@ -1,6 +1,14 @@
 -- ================================================================
--- تحديث دالة rpc_debt_list — فصل حسابات الشهري عن الدوري
--- انسخ الكود ده وشغّله في Supabase SQL Editor
+-- 1. إضافة عمود يوم تقفيل الشهر لجدول الفروع branches
+-- ================================================================
+ALTER TABLE branches ADD COLUMN IF NOT EXISTS closing_day integer DEFAULT 1;
+
+-- تحديث الفروع الحالية
+UPDATE branches SET closing_day = 20 WHERE name LIKE '%جرين هيلز%' OR name LIKE '%الثلاثي%';
+UPDATE branches SET closing_day = 1 WHERE name LIKE '%رويال%';
+
+-- ================================================================
+-- 2. تحديث دالة rpc_debt_list لتأخذ يوم تقفيل الشهر بعين الاعتبار
 -- ================================================================
 
 DROP FUNCTION IF EXISTS rpc_debt_list(uuid);
@@ -23,7 +31,7 @@ RETURNS TABLE(
   payment_type text,
   registration_date date,
   months_enrolled integer,
-  -- الحسابات الكلية (للتوافق مع الأكواد القديمة)
+  -- الحسابات الكلية
   total_expected numeric,
   total_paid numeric,
   debt numeric,
@@ -55,8 +63,22 @@ AS $$
       p.fee_amount_periodic,
       p.payment_type,
       p.registration_date,
-      ((EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
-       + EXTRACT(MONTH FROM CURRENT_DATE) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
+      -- التاريخ الحسابي المؤثر بناءً على يوم تقفيل الفرع
+      -- إذا كان يوم التقفيل 20، فمن يوم 21 يبدأ الشهر الجديد حُكمياً
+      ((EXTRACT(YEAR FROM (
+          CASE 
+            WHEN COALESCE(b.closing_day, 1) > 1 AND EXTRACT(DAY FROM CURRENT_DATE) > b.closing_day 
+            THEN CURRENT_DATE + INTERVAL '1 month'
+            ELSE CURRENT_DATE
+          END
+        )) - EXTRACT(YEAR FROM GREATEST(p.registration_date, '2026-07-01'::date))) * 12 
+       + EXTRACT(MONTH FROM (
+          CASE 
+            WHEN COALESCE(b.closing_day, 1) > 1 AND EXTRACT(DAY FROM CURRENT_DATE) > b.closing_day 
+            THEN CURRENT_DATE + INTERVAL '1 month'
+            ELSE CURRENT_DATE
+          END
+        )) - EXTRACT(MONTH FROM GREATEST(p.registration_date, '2026-07-01'::date)) 
        + 1)::integer AS months_enrolled,
       COALESCE(pay.total_paid, 0) AS total_paid,
       pay.last_pay_date AS last_payment_date
@@ -89,18 +111,18 @@ AS $$
     payment_type,
     registration_date,
     months_enrolled,
-    -- total_expected (كلي — للتوافق)
+    -- total_expected (كلي)
     (fee_amount * months_enrolled + fee_amount_periodic * CEIL(months_enrolled::numeric / 3.0))::numeric AS total_expected,
     total_paid,
-    -- debt (كلي — للتوافق)
+    -- debt (كلي)
     GREATEST(0, (fee_amount * months_enrolled + fee_amount_periodic * CEIL(months_enrolled::numeric / 3.0) - total_paid))::numeric AS debt,
     -- المتوقع الشهري فقط
     (fee_amount * months_enrolled)::numeric AS total_expected_monthly,
-    -- مديونية الشهري = المتوقع الشهري - المدفوع (بحد أقصى المتوقع الشهري)
+    -- مديونية الشهري
     GREATEST(0, LEAST(fee_amount * months_enrolled, fee_amount * months_enrolled + fee_amount_periodic * CEIL(months_enrolled::numeric / 3.0) - total_paid))::numeric AS debt_monthly,
     -- المتوقع الدوري فقط
     (fee_amount_periodic * CEIL(months_enrolled::numeric / 3.0))::numeric AS total_expected_periodic,
-    -- مديونية الدوري = الباقي من المديونية الكلية بعد خصم مديونية الشهري
+    -- مديونية الدوري
     GREATEST(0, (fee_amount * months_enrolled + fee_amount_periodic * CEIL(months_enrolled::numeric / 3.0) - total_paid) - LEAST(fee_amount * months_enrolled, GREATEST(0, fee_amount * months_enrolled + fee_amount_periodic * CEIL(months_enrolled::numeric / 3.0) - total_paid)))::numeric AS debt_periodic,
     last_payment_date,
     -- next_payment_date calculation
@@ -108,3 +130,21 @@ AS $$
   FROM player_stats
   ORDER BY debt DESC;
 $$;
+
+-- ================================================================
+-- 3. (اختياري) تسوية الشهور القديمة لكل اللاعبين الحاليين حتى 20 يوليو 2026
+-- شغل الكود التالي إذا أردت اعتبار جميع الشهور السابقة مدفوعة للجميع فوراً
+-- ================================================================
+
+INSERT INTO payments (player_id, branch_id, amount, payment_date, method, period_covered, notes)
+SELECT 
+  d.player_id,
+  d.branch_id,
+  d.debt AS amount,
+  '2026-07-20'::date AS payment_date,
+  'cash'::payment_method AS method,
+  'تسوية الشهور القديمة حتى 20 يوليو 2026' AS period_covered,
+  'تصفية الشهور القديمة آلياً' AS notes
+FROM rpc_debt_list() d
+WHERE d.debt > 0;
+

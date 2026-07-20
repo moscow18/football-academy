@@ -47,6 +47,45 @@ export default function DebtsPage() {
   const totalDebtMonthly = monthlyPlayers.reduce((s, d) => s + (Number(d.debt_monthly) > 0 ? Number(d.debt_monthly) : 0), 0);
   const debtorsCount = monthlyPlayers.filter(d => Number(d.debt_monthly) > 0).length;
 
+  const clearAllPastDebts = async () => {
+    if (!confirm('هل أنت متأكد من تسوية وتصفية الشهور القديمة لكل اللاعبين حتى اليوم؟\n\nسيتم تسجيل دفعات بقيمة المستحقات القديمة لكل لاعب، ليبدأ الجميع بمديونية صفرية حتى بداية الشهر الجديد.')) return;
+    
+    try {
+      const { data: list, error: err1 } = await supabase.rpc('rpc_debt_list', { p_branch_id: branchFilter || null });
+      if (err1 || !list) {
+        alert('حدث خطأ أثناء جلب قائمة المديونيات');
+        return;
+      }
+      
+      const debtors = list.filter((d: any) => Number(d.debt) > 0);
+      if (debtors.length === 0) {
+        alert('لا توجد مديونيات سابقة لتصفيتها، جميع اللاعبين مسددين بالكامل!');
+        return;
+      }
+      
+      const todayStr = new Date().toISOString().split('T')[0];
+      const newPayments = debtors.map((d: any) => ({
+        player_id: d.player_id,
+        branch_id: d.branch_id,
+        amount: Number(d.debt),
+        payment_date: todayStr,
+        method: 'cash',
+        period_covered: 'تسوية الشهور القديمة حتى 20 يوليو 2026',
+        notes: 'تصفية الشهور القديمة آلياً بناءً على طلب الإدارة'
+      }));
+      
+      const { error: insertErr } = await supabase.from('payments').insert(newPayments);
+      if (insertErr) {
+        alert('حدث خطأ أثناء تسجيل الدفعات: ' + insertErr.message);
+      } else {
+        alert(`تم تسجيل دفع تسوية الشهور القديمة لعدد ${debtors.length} لاعب بنجاح!`);
+        loadDebts();
+      }
+    } catch (err: any) {
+      alert('خطأ: ' + err.message);
+    }
+  };
+
   if (initialLoading) return <PageLoading />;
 
   return (
@@ -75,6 +114,13 @@ export default function DebtsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <button
+              onClick={clearAllPastDebts}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg font-bold text-xs hover:from-emerald-700 hover:to-teal-700 transition-all shadow-sm flex items-center gap-1.5"
+              title="اعتبار جميع الشهور القديمة مدفوعة لجميع اللاعبين الحاليين"
+            >
+              ✅ تسوية الشهور القديمة للجميع
+            </button>
             <input
               type="text"
               placeholder="بحث بالاسم أو الكود..."
