@@ -154,4 +154,15 @@ SET branch_id = u.branch_id
 FROM users u
 WHERE ca.coach_id = u.id AND (ca.branch_id IS NULL OR ca.branch_id != u.branch_id);
 
+-- تحديث الراتب الأساسي لجميع المدربين تلقائياً من آخر دفعة راتب مدفوعة لهم
+UPDATE coaches c
+SET base_salary = latest_pay.amount
+FROM (
+  SELECT DISTINCT ON (coach_id) coach_id, amount
+  FROM coach_salary_payments
+  ORDER BY coach_id, payment_date DESC
+) latest_pay
+WHERE c.user_id = latest_pay.coach_id AND (c.base_salary IS NULL OR c.base_salary = 0);
+
+
 

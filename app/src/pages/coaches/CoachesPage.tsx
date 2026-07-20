@@ -34,29 +34,45 @@ export default function CoachesPage() {
   const loadCoaches = useCallback(async () => {
     setLoading(true);
     
-    // Fetch users with role='coach' and all coaches records in parallel
-    const [usersRes, coachesRes] = await Promise.all([
+    // Fetch users with role='coach', coaches records, and salary payments in parallel
+    const [usersRes, coachesRes, salaryPaymentsRes] = await Promise.all([
       supabase
         .from('users')
         .select('id, full_name, phone, branch_id, is_active, created_at, branches(name)')
         .eq('role', 'coach'),
       supabase
         .from('coaches')
-        .select('*')
+        .select('*'),
+      supabase
+        .from('coach_salary_payments')
+        .select('coach_id, amount, payment_date')
+        .order('payment_date', { ascending: false })
     ]);
 
     const usersData = usersRes.data || [];
     const coachesData = coachesRes.data || [];
+    const salaryPaymentsData = salaryPaymentsRes.data || [];
 
     const coachMap = new Map<string, any>();
     coachesData.forEach((c: any) => {
       coachMap.set(c.user_id, c);
     });
 
+    const latestPaymentMap = new Map<string, number>();
+    salaryPaymentsData.forEach((sp: any) => {
+      if (!latestPaymentMap.has(sp.coach_id)) {
+        latestPaymentMap.set(sp.coach_id, Number(sp.amount || 0));
+      }
+    });
+
     const mapped = usersData
       .filter((u: any) => !branchFilter || u.branch_id === branchFilter)
       .map((u: any) => {
         const c = coachMap.get(u.id);
+        const recordedBaseSalary = Number(c?.base_salary || 0);
+        const latestPayment = latestPaymentMap.get(u.id) || 0;
+        const effectiveBaseSalary = recordedBaseSalary > 0 ? recordedBaseSalary : latestPayment;
+
         return {
           user_id: u.id,
           full_name: u.full_name,
@@ -64,7 +80,7 @@ export default function CoachesPage() {
           branch_id: u.branch_id,
           is_active: u.is_active,
           branch_name: u.branches?.name,
-          base_salary: Number(c?.base_salary || 0),
+          base_salary: effectiveBaseSalary,
           specialization: c?.specialization || 'مدرب',
           hire_date: c?.hire_date || u.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
         };
