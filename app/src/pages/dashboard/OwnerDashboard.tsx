@@ -13,6 +13,7 @@ interface DashboardStats {
   totalDebt: number;
   totalCollectedMonthly: number;
   totalCollectedPeriodic: number;
+  actualCollected: number;
   expensesAndSalaries: number;
   netProfit: number;
   revenueTrend: any[];
@@ -78,6 +79,10 @@ export default function OwnerDashboard() {
         (sum: number, b: any) => sum + Number(b.total_expenses || 0) + Number(b.salaries_paid || 0),
         0
       );
+      const actualCollectedMonth = branchBreakdown.reduce(
+        (sum: number, b: any) => sum + Number(b.fee_revenue || 0) + Number(b.kit_revenue || 0),
+        0
+      );
       
       const { data: debtListData, error: debtListError } = await supabase.rpc('rpc_debt_list', { p_branch_id: branchFilter });
       if (debtListError) {
@@ -105,6 +110,7 @@ export default function OwnerDashboard() {
         totalDebt,
         totalCollectedMonthly,
         totalCollectedPeriodic,
+        actualCollected: actualCollectedMonth,
         expensesAndSalaries: totalExpensesAndSalaries,
         netProfit: totalNetProfit,
         revenueTrend: trendData || [],
@@ -149,7 +155,7 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards Row 1 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* Active Players */}
@@ -211,8 +217,8 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
-      {/* Second row: Periodic + Expenses & Salaries */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* KPI Cards Row 2 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Periodic (League) Subscriptions */}
         <div className="bg-white border border-slate-200 border-r-4 border-r-blue-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
@@ -229,6 +235,25 @@ export default function OwnerDashboard() {
           </div>
           <div className="mt-3 flex items-center gap-1.5">
             <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي اشتراكات الدوري فقط</span>
+          </div>
+        </div>
+
+        {/* Actual Collected */}
+        <div className="bg-white border border-slate-200 border-r-4 border-r-amber-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي المحصل فعلياً</span>
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+              <TrendingUp size={20} strokeWidth={2} />
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-4xl font-extrabold text-amber-800 font-tabular">
+              {stats.actualCollected.toLocaleString('en-US')}
+            </h3>
+            <span className="text-sm font-bold text-amber-700 font-arabic">ج.م</span>
+          </div>
+          <div className="mt-3 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي التحصيل الفعلي للشهر</span>
           </div>
         </div>
 
