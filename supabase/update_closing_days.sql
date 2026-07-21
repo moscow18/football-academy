@@ -61,7 +61,7 @@ AS $$
     SELECT
       b.id AS bid,
       b.name AS bname,
-      COALESCE(SUM(pl.fee_amount), 0) AS fee_rev
+      COALESCE(SUM(pl.fee_amount + COALESCE(pl.fee_amount_periodic, 0)), 0) AS fee_rev
     FROM branches b
     LEFT JOIN players pl ON pl.branch_id = b.id AND pl.status = 'active'
     WHERE (p_branch_id IS NULL OR b.id = p_branch_id)
