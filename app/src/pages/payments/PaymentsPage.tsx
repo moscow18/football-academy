@@ -11,7 +11,7 @@ import type { Payment, Player } from '../../lib/types';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { FileText, Users, X, Search } from 'lucide-react';
+import { FileText, Users, X, Search, Trash2 } from 'lucide-react';
 
 const PAGE_SIZE = 50;
 
@@ -284,6 +284,23 @@ export default function PaymentsPage() {
     }
   }
 
+  async function handleDeletePayment(p: Payment) {
+    if (!window.confirm(`هل أنت متأكد من إلغاء/حذف دفعة بقيمة ${formatMoney(p.amount)} ج.م للاعب (${p.player_name})؟`)) return;
+
+    try {
+      const { error } = await supabase.from('payments').delete().eq('id', p.id);
+      if (error) {
+        toast('error', 'حدث خطأ أثناء إلغاء الدفعة: ' + error.message);
+        return;
+      }
+      toast('success', 'تم إلغاء الدفعة بنجاح 🗑️');
+      loadPayments();
+    } catch (err) {
+      console.error(err);
+      toast('error', 'حدث خطأ أثناء إلغاء الدفعة');
+    }
+  }
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -337,7 +354,7 @@ export default function PaymentsPage() {
                   <th>الفترة</th>
                   <th>التاريخ</th>
                   <th>ملاحظات</th>
-                  <th>إيصال</th>
+                  <th>إجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -352,14 +369,24 @@ export default function PaymentsPage() {
                     <td className="text-sm">{formatDate(p.payment_date)}</td>
                     <td className="text-xs text-slate-400 max-w-[150px] truncate">{p.notes || '—'}</td>
                     <td>
-                      <button 
-                        onClick={() => printReceipt(p)}
-                        className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 rounded transition-colors"
-                        title="طباعة إيصال"
-                      >
-                        <FileText size={16} />
-                      </button>
-
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => printReceipt(p)}
+                          className="p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 rounded transition-colors cursor-pointer"
+                          title="طباعة إيصال"
+                        >
+                          <FileText size={16} />
+                        </button>
+                        {(profile?.role === 'owner' || profile?.role === 'admin') && (
+                          <button 
+                            onClick={() => handleDeletePayment(p)}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 rounded transition-colors cursor-pointer"
+                            title="إلغاء / حذف الدفعة"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
