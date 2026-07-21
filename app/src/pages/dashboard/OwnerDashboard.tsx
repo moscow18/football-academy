@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatMonth } from '../../lib/utils';
+import { formatMonth, getActiveFinancialMonth } from '../../lib/utils';
 import { Users, TrendingUp, Activity } from 'lucide-react';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
@@ -20,13 +20,23 @@ interface DashboardStats {
 }
 
 export default function OwnerDashboard() {
-  const { selectedBranchId } = useBranch();
+  const { selectedBranchId, selectedBranch } = useBranch();
   const { profile } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Use real current month dynamically
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => 
+    getActiveFinancialMonth(selectedBranch)
+  );
+
+  const [prevBranchId, setPrevBranchId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedBranchId !== prevBranchId) {
+      setSelectedMonth(getActiveFinancialMonth(selectedBranch));
+      setPrevBranchId(selectedBranchId);
+    }
+  }, [selectedBranchId, selectedBranch, prevBranchId]);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -47,7 +57,7 @@ export default function OwnerDashboard() {
         { data: recentPlayersData }
       ] = await Promise.all([
         playersQuery,
-        supabase.rpc('get_monthly_branch_stats', { p_month: currentMonth }),
+        supabase.rpc('get_monthly_branch_stats', { p_month: selectedMonth }),
         supabase.rpc('get_revenue_trend', { p_branch_id: branchFilter }),
         supabase
           .from('players')
@@ -111,7 +121,7 @@ export default function OwnerDashboard() {
       console.error('Dashboard load error:', err);
     }
     setLoading(false);
-  }, [selectedBranchId, currentMonth]);
+  }, [selectedBranchId, selectedMonth]);
 
   useEffect(() => {
     loadDashboard();
@@ -128,9 +138,22 @@ export default function OwnerDashboard() {
     <div className="space-y-8 animate-fade-in pb-12">
       
       {/* Header Section */}
-      <div className="mb-2">
-        <h2 className="text-2xl font-bold text-slate-900 mb-1 font-arabic">نظرة عامة على أداء الأكاديمية</h2>
-        <p className="text-slate-500 font-medium text-sm font-arabic">التحليل المالي والإحصائيات الخاصة باللاعبين.</p>
+      <div className="mb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-1 font-arabic">نظرة عامة على أداء الأكاديمية</h2>
+          <p className="text-slate-500 font-medium text-sm font-arabic">التحليل المالي والإحصائيات الخاصة باللاعبين.</p>
+        </div>
+        
+        {/* Month Selector */}
+        <div className="flex items-center gap-2 bg-white px-4 py-2 border border-slate-200 rounded-xl shadow-sm self-start sm:self-auto">
+          <span className="text-slate-500 font-bold text-sm font-arabic">الشهر المالي:</span>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="border-none bg-transparent font-tabular font-bold text-slate-700 focus:outline-none cursor-pointer focus:ring-0 text-sm font-[Cairo]"
+          />
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -157,7 +180,7 @@ export default function OwnerDashboard() {
         {/* Net Profit */}
         <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">صافي الربح ({formatMonth(currentMonth)})</span>
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">صافي الربح ({formatMonth(selectedMonth)})</span>
             <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
               <TrendingUp size={20} strokeWidth={2} />
             </div>

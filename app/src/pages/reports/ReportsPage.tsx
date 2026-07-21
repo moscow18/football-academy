@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
-import { formatMoney, formatMonth, getCurrentMonth, formatDate } from '../../lib/utils';
+import { formatMoney, formatMonth, getCurrentMonth, formatDate, getActiveFinancialMonth } from '../../lib/utils';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
 import { BranchBadge } from '../../components/ui/Badge';
 import type { NetProfit, AttendanceSummary, LedgerTransaction } from '../../lib/types';
@@ -15,7 +15,7 @@ import {
 type ReportType = 'monthly' | 'ledger' | 'attendance' | 'debts';
 
 export default function ReportsPage() {
-  const { branchFilter } = useBranch();
+  const { branchFilter, selectedBranch } = useBranch();
   const { toast } = useToast();
 
   const [reportType, setReportType] = useState<ReportType>('monthly');
@@ -26,6 +26,16 @@ export default function ReportsPage() {
   });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
+
+  const [prevBranchId, setPrevBranchId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const branchId = selectedBranch?.id || null;
+    if (branchId !== prevBranchId) {
+      setMonth(getActiveFinancialMonth(selectedBranch));
+      setPrevBranchId(branchId);
+    }
+  }, [selectedBranch, prevBranchId]);
 
   // Report data
   const [profitData, setProfitData] = useState<NetProfit[]>([]);

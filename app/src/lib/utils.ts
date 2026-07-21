@@ -32,6 +32,25 @@ export function getCurrentMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/** Calculate the active financial month of a branch based on its closing day */
+export function getActiveFinancialMonth(branch: { closing_day?: number } | null): string {
+  const now = new Date();
+  const day = now.getDate();
+  let year = now.getFullYear();
+  let month = now.getMonth(); // 0-indexed
+
+  const closingDay = branch?.closing_day;
+  if (closingDay && closingDay > 0 && closingDay < 31 && day > closingDay) {
+    month += 1;
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
+  }
+
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
 /** Format month string (YYYY-MM) to Arabic display */
 export function formatMonth(month: string): string {
   if (!month) return '—';
