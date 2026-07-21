@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatMonth, getActiveFinancialMonth } from '../../lib/utils';
-import { Users, TrendingUp, Activity } from 'lucide-react';
+import { Users, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
@@ -13,7 +13,7 @@ interface DashboardStats {
   totalDebt: number;
   totalCollectedMonthly: number;
   totalCollectedPeriodic: number;
-  actualCollected: number;
+  expensesAndSalaries: number;
   netProfit: number;
   revenueTrend: any[];
   recentPlayers: any[];
@@ -74,6 +74,10 @@ export default function OwnerDashboard() {
       }
 
       const totalNetProfit = branchBreakdown.reduce((sum: number, b: any) => sum + Number(b.net_profit || 0), 0);
+      const totalExpensesAndSalaries = branchBreakdown.reduce(
+        (sum: number, b: any) => sum + Number(b.total_expenses || 0) + Number(b.salaries_paid || 0),
+        0
+      );
       
       const { data: debtListData, error: debtListError } = await supabase.rpc('rpc_debt_list', { p_branch_id: branchFilter });
       if (debtListError) {
@@ -81,7 +85,7 @@ export default function OwnerDashboard() {
       }
       const totalDebt = debtListData ? debtListData.reduce((sum: number, d: any) => sum + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0) : 0;
 
-      // 1. Expected Subscription Fees — SEPARATED monthly vs periodic
+      // Expected Subscription Fees — SEPARATED monthly vs periodic
       let pq = supabase.from('players').select('fee_amount, fee_amount_periodic').eq('status', 'active');
       if (branchFilter) pq = pq.eq('branch_id', branchFilter);
       const { data: playersListData, error: playersListError } = await pq;
@@ -90,17 +94,6 @@ export default function OwnerDashboard() {
       }
       const totalCollectedMonthly = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0), 0) : 0;
       const totalCollectedPeriodic = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount_periodic || 0), 0) : 0;
-
-      // 2. Actual Collected Payments (from payments table)
-      let actualCollected = 0;
-      let pqPayments = supabase.from('payments').select('amount');
-      if (branchFilter) pqPayments = pqPayments.eq('branch_id', branchFilter);
-      const { data: paymentsListData, error: paymentsListError } = await pqPayments;
-      if (paymentsListError) {
-        console.error('OwnerDashboard: error loading payments:', paymentsListError);
-      } else if (paymentsListData) {
-        actualCollected = paymentsListData.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
-      }
 
       let recent = recentPlayersData || [];
       if (branchFilter) {
@@ -112,7 +105,7 @@ export default function OwnerDashboard() {
         totalDebt,
         totalCollectedMonthly,
         totalCollectedPeriodic,
-        actualCollected,
+        expensesAndSalaries: totalExpensesAndSalaries,
         netProfit: totalNetProfit,
         revenueTrend: trendData || [],
         recentPlayers: recent,
@@ -218,7 +211,7 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
-      {/* Second row: Periodic + Actual Collected */}
+      {/* Second row: Periodic + Expenses & Salaries */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Periodic (League) Subscriptions */}
         <div className="bg-white border border-slate-200 border-r-4 border-r-blue-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
@@ -239,22 +232,22 @@ export default function OwnerDashboard() {
           </div>
         </div>
 
-        {/* Actual Collected */}
-        <div className="bg-white border border-slate-200 border-r-4 border-r-amber-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        {/* Expenses and Salaries */}
+        <div className="bg-white border border-slate-200 border-r-4 border-r-rose-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">إجمالي المحصل فعلياً</span>
-            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
-              <TrendingUp size={20} strokeWidth={2} />
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">المرتبات والمصروفات</span>
+            <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+              <TrendingDown size={20} strokeWidth={2} />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <h3 className="text-4xl font-extrabold text-amber-800 font-tabular">
-              {stats.actualCollected.toLocaleString('en-US')}
+            <h3 className="text-4xl font-extrabold text-rose-800 font-tabular">
+              {stats.expensesAndSalaries.toLocaleString('en-US')}
             </h3>
-            <span className="text-sm font-bold text-amber-700 font-arabic">ج.م</span>
+            <span className="text-sm font-bold text-rose-700 font-arabic">ج.م</span>
           </div>
           <div className="mt-3 flex items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي المدفوعات المسجلة</span>
+            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي المصروفات والرواتب للشهر</span>
           </div>
         </div>
       </div>
