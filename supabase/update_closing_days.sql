@@ -15,6 +15,8 @@ UPDATE branches SET closing_day = 31 WHERE closing_day IS NULL OR closing_day = 
 -- ================================================================
 -- 2. دالة تحويل التاريخ الميلادي إلى الشهر المالي الخاص بالفرع
 -- ================================================================
+DROP FUNCTION IF EXISTS fn_date_to_financial_month(date, integer);
+
 CREATE OR REPLACE FUNCTION fn_date_to_financial_month(p_date date, p_closing_day integer)
 RETURNS text
 LANGUAGE sql
@@ -35,6 +37,9 @@ $$;
 -- ================================================================
 
 -- أ) حساب صافي الأرباح لكل فرع حسب الشهر المالي
+DROP FUNCTION IF EXISTS rpc_net_profit(uuid, text);
+DROP FUNCTION IF EXISTS rpc_net_profit();
+
 CREATE OR REPLACE FUNCTION rpc_net_profit(
   p_branch_id uuid DEFAULT NULL,
   p_month text DEFAULT to_char(now(), 'YYYY-MM')
@@ -112,6 +117,9 @@ AS $$
 $$;
 
 -- ب) حساب الإيرادات الشهرية لكل فرع حسب الشهر المالي
+DROP FUNCTION IF EXISTS rpc_monthly_revenue(uuid, text);
+DROP FUNCTION IF EXISTS rpc_monthly_revenue();
+
 CREATE OR REPLACE FUNCTION rpc_monthly_revenue(
   p_branch_id uuid DEFAULT NULL,
   p_month text DEFAULT to_char(now(), 'YYYY-MM')
@@ -143,6 +151,9 @@ AS $$
 $$;
 
 -- ج) حساب تريند الإيرادات للشهور الستة الماضية لكل فرع حسب شهره المالي
+DROP FUNCTION IF EXISTS rpc_revenue_trend(uuid);
+DROP FUNCTION IF EXISTS rpc_revenue_trend();
+
 CREATE OR REPLACE FUNCTION rpc_revenue_trend(
   p_branch_id uuid DEFAULT NULL
 )
@@ -181,6 +192,7 @@ $$;
 
 -- د) تحديث دالة كشف مديونيات اللاعبين لتأخذ يوم التقفيل للفروع بالاعتبار بدقة
 DROP FUNCTION IF EXISTS rpc_debt_list(uuid);
+DROP FUNCTION IF EXISTS rpc_debt_list();
 
 CREATE OR REPLACE FUNCTION rpc_debt_list(
   p_branch_id uuid DEFAULT NULL
@@ -301,6 +313,9 @@ AS $$
 $$;
 
 -- هـ) إنشاء دالة دفتر اليومية (Ledger) لدعم الشهور المالية للفروع
+DROP FUNCTION IF EXISTS rpc_get_ledger(uuid, text);
+DROP FUNCTION IF EXISTS rpc_get_ledger();
+
 CREATE OR REPLACE FUNCTION rpc_get_ledger(
   p_branch_id uuid DEFAULT NULL,
   p_month text DEFAULT to_char(now(), 'YYYY-MM')
@@ -367,7 +382,7 @@ AS $$
       WHEN 'salaries' THEN 'رواتب'
       WHEN 'equipment' THEN 'معدات'
       WHEN 'rent' THEN 'إيجار'
-      WHEN 'utilities' THEN 'مраفق'
+      WHEN 'utilities' THEN 'مرافق'
       WHEN 'kits_stock' THEN 'مخزون أطقم'
       ELSE 'أخرى'
     END AS category,
@@ -424,6 +439,9 @@ $$;
 -- 4. إنشاء دوال الأسماء المستعارة (Aliases) المستدعاة من لوحة التحكم
 -- ================================================================
 
+DROP FUNCTION IF EXISTS get_monthly_branch_stats(text);
+DROP FUNCTION IF EXISTS get_monthly_branch_stats();
+
 CREATE OR REPLACE FUNCTION get_monthly_branch_stats(
   p_month text DEFAULT to_char(now(), 'YYYY-MM')
 )
@@ -442,6 +460,9 @@ STABLE
 AS $$
   SELECT * FROM rpc_net_profit(NULL, p_month);
 $$;
+
+DROP FUNCTION IF EXISTS get_revenue_trend(uuid);
+DROP FUNCTION IF EXISTS get_revenue_trend();
 
 CREATE OR REPLACE FUNCTION get_revenue_trend(
   p_branch_id uuid DEFAULT NULL
