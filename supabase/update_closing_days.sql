@@ -61,10 +61,9 @@ AS $$
     SELECT
       b.id AS bid,
       b.name AS bname,
-      COALESCE(SUM(p.amount), 0) AS fee_rev
+      COALESCE(SUM(pl.fee_amount), 0) AS fee_rev
     FROM branches b
-    LEFT JOIN payments p ON p.branch_id = b.id
-      AND fn_date_to_financial_month(p.payment_date, b.closing_day) = p_month
+    LEFT JOIN players pl ON pl.branch_id = b.id AND pl.status = 'active'
     WHERE (p_branch_id IS NULL OR b.id = p_branch_id)
     GROUP BY b.id, b.name
   ),
@@ -137,13 +136,12 @@ AS $$
   SELECT
     b.id AS branch_id,
     b.name AS branch_name,
-    COALESCE(SUM(p.amount) FILTER (WHERE p.id IS NOT NULL), 0) AS fee_revenue,
+    COALESCE(SUM(pl.fee_amount) FILTER (WHERE pl.id IS NOT NULL), 0) AS fee_revenue,
     COALESCE(SUM(kp.amount_paid) FILTER (WHERE kp.id IS NOT NULL), 0) AS kit_revenue,
-    COALESCE(SUM(p.amount) FILTER (WHERE p.id IS NOT NULL), 0) +
+    COALESCE(SUM(pl.fee_amount) FILTER (WHERE pl.id IS NOT NULL), 0) +
     COALESCE(SUM(kp.amount_paid) FILTER (WHERE kp.id IS NOT NULL), 0) AS total_revenue
   FROM branches b
-  LEFT JOIN payments p ON p.branch_id = b.id
-    AND fn_date_to_financial_month(p.payment_date, b.closing_day) = p_month
+  LEFT JOIN players pl ON pl.branch_id = b.id AND pl.status = 'active'
   LEFT JOIN kit_purchases kp ON kp.branch_id = b.id
     AND fn_date_to_financial_month(kp.purchase_date, b.closing_day) = p_month
   WHERE (p_branch_id IS NULL OR b.id = p_branch_id)
@@ -478,3 +476,16 @@ STABLE
 AS $$
   SELECT * FROM rpc_revenue_trend(p_branch_id);
 $$;
+
+-- ================================================================
+-- 5. تفعيل التحديث اللحظي (Realtime Replication) على جميع الجداول
+-- ================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+END $$;
+
+ALTER PUBLICATION supabase_realtime ADD TABLE players, payments, expenses, coach_salary_payments, coach_advances, kit_purchases, kit_items, groups, attendance;
+
