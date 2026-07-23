@@ -8,7 +8,7 @@ import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import type { DebtItem } from '../../lib/types';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, RotateCcw } from 'lucide-react';
 
 export default function DebtsPage() {
   const { branchFilter } = useBranch();
@@ -112,6 +112,24 @@ export default function DebtsPage() {
     }
   };
 
+  const rollbackBulkSettlement = async () => {
+    if (!confirm('هل أنت متأكد من إلغاء وحذف كافة دفعات "تسوية الشهور القديمة" التي تم تسجيلها آلياً بالخطأ اليوم؟\n\nسيتم استعادة المديونيات الحقيقية لجميع اللاعبين فوراً.')) return;
+
+    try {
+      const { error } = await supabase
+        .from('payments')
+        .delete()
+        .or('notes.ilike.%تصفية الشهور القديمة%,notes.ilike.%تسوية الشهور القديمة%');
+
+      if (error) throw error;
+
+      toast('success', 'تم التراجع عن التسوية التلقائية وحذف جميع الدفعات المسجلة بالخطأ بنجاح! 🗑️');
+      loadDebts();
+    } catch (err: any) {
+      toast('error', 'حدث خطأ أثناء التراجع: ' + err.message);
+    }
+  };
+
   if (initialLoading) return <PageLoading />;
 
   return (
@@ -158,6 +176,14 @@ export default function DebtsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <button
+              onClick={rollbackBulkSettlement}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer font-arabic"
+              title="إلغاء وحذف كافة الدفعات المسجلة بالخطأ عند الضغط على تسوية الجميع"
+            >
+              <RotateCcw size={15} />
+              <span>تراجع عن تسوية الجميع بالخطأ</span>
+            </button>
             <input
               type="text"
               placeholder="بحث بالاسم أو الكود..."
