@@ -90,6 +90,27 @@ export default function DebtsPage() {
 
   return (
     <div className={`transition-opacity duration-200 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+      
+      {/* Help Banner for Debt Explanation */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-5 shadow-sm font-arabic animate-fade-in">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-xl font-bold shrink-0 shadow-md">
+            💡
+          </div>
+          <div className="flex-1 text-sm text-slate-700 leading-relaxed">
+            <h3 className="font-bold text-base text-blue-950 mb-1">شرح تبسيط المديونية (دليل الموظفين الإداريين):</h3>
+            <p className="mb-2 text-slate-600">
+              <strong>المديونية</strong> تمثل الرسوم المستحقة على اللاعب عن الشهور المسجلة في الأكاديمية والتي لم يتم تحصيلها بعد.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs bg-white/80 p-3 rounded-lg border border-blue-100 font-medium">
+              <div>📌 <strong className="text-emerald-700">إجمالي المتوقع:</strong> قيمة الاشتراك ضرب عدد الشهور المسجلة.</div>
+              <div>📌 <strong className="text-blue-700">إجمالي المحصل:</strong> المدفوعات المسجلة للسنوات والشهور.</div>
+              <div>📌 <strong className="text-red-600">المديونية =</strong> (المتوقع - المحصل) = المبلغ المطلوب تحصيله.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Summary — MONTHLY ONLY */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5 shadow-sm flex flex-col gap-5 animate-fade-in">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">

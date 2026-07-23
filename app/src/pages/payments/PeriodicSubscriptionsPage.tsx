@@ -10,7 +10,8 @@ import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import type { DebtItem, Group } from '../../lib/types';
-import { Plus, Users, Edit2 } from 'lucide-react';
+import { Plus, Users, Edit2, Trash2 } from 'lucide-react';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 
 const DAYS_OF_WEEK = [
   { id: 'saturday', name: 'السبت' },
@@ -46,6 +47,29 @@ export default function PeriodicSubscriptionsPage() {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
+
+  // Delete state
+  const [playerToDelete, setPlayerToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function confirmDeletePlayer() {
+    if (!playerToDelete) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('players').delete().eq('id', playerToDelete.id);
+      if (error) {
+        toast('error', `حدث خطأ أثناء حذف اللاعب: ${error.message}`);
+        return;
+      }
+      toast('success', `تم حذف اللاعب ${playerToDelete.name} بجميع بياناته بنجاح`);
+      setPlayerToDelete(null);
+      loadData();
+    } catch (err: any) {
+      toast('error', `حدث خطأ: ${err.message || 'فشل في حذف اللاعب'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   // Forms State
   const [playerForm, setPlayerForm] = useState({
@@ -571,6 +595,13 @@ export default function PeriodicSubscriptionsPage() {
                           <Edit2 size={12} /> تعديل
                         </button>
                         <button
+                          onClick={() => setPlayerToDelete({ id: d.player_id, name: d.player_name })}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-full text-xs font-bold transition-colors whitespace-nowrap cursor-pointer hover:scale-105 active:scale-100"
+                          title="حذف اللاعب نهائياً"
+                        >
+                          <Trash2 size={12} /> حذف
+                        </button>
+                        <button
                           onClick={() => exportPlayerExcel(d.player_id, d)}
                           disabled={isExportingPlayer === d.player_id}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-bold transition-colors disabled:opacity-50 whitespace-nowrap cursor-pointer hover:scale-105 active:scale-100"
@@ -879,6 +910,19 @@ export default function PeriodicSubscriptionsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Confirm Delete Player Modal */}
+      <ConfirmModal
+        isOpen={!!playerToDelete}
+        onClose={() => setPlayerToDelete(null)}
+        onConfirm={confirmDeletePlayer}
+        title="تأكيد حذف لاعب الدوري نهائياً"
+        message={`هل أنت متأكد من حذف اللاعب "${playerToDelete?.name}" تماماً من النظام؟\nسيتم مسح كود اللاعب وجميع سجلات المدفوعات والحضور المرتبطة به نهائياً ولا يمكن التراجع عن هذا الإجراء.`}
+        confirmText="نعم، احذف اللاعب"
+        cancelText="إلغاء الإجراء"
+        variant="danger"
+        isLoading={isDeleting}
+      />
 
     </div>
   );

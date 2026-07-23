@@ -7,9 +7,10 @@ import { formatDate, formatMoney } from '../../lib/utils';
 import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import type { Expense, ExpenseCategory } from '../../lib/types';
 import { EXPENSE_CATEGORY_LABELS } from '../../lib/types';
-import { TrendingDown } from 'lucide-react';
+import { TrendingDown, Edit2, Trash2 } from 'lucide-react';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 
 export default function ExpensesPage() {
@@ -20,6 +21,11 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const [form, setForm] = useState({
     branch_id: '', category: 'other' as ExpenseCategory,
     amount: '', expense_date: new Date().toISOString().split('T')[0],
@@ -48,15 +54,45 @@ export default function ExpensesPage() {
   // ⚡ Realtime: auto-refresh when expenses changes
   useRealtimeRefresh(['expenses'], loadExpenses);
 
-  async function deleteExpense(id: string) {
-    if (!window.confirm('هل أنت متأكد من مسح هذا المصروف نهائياً؟')) return;
-    const { error } = await supabase.from('expenses').delete().eq('id', id);
-    if (error) {
-      toast('error', 'حدث خطأ أثناء مسح المصروف');
-      return;
+  function openAddForm() {
+    setEditingExpense(null);
+    setForm({
+      branch_id: branchFilter || branches[0]?.id || '',
+      category: 'other',
+      amount: '',
+      expense_date: new Date().toISOString().split('T')[0],
+      notes: '',
+    });
+    setShowForm(true);
+  }
+
+  function openEditForm(exp: Expense) {
+    setEditingExpense(exp);
+    setForm({
+      branch_id: exp.branch_id,
+      category: exp.category,
+      amount: String(exp.amount),
+      expense_date: exp.expense_date || new Date().toISOString().split('T')[0],
+      notes: exp.notes || '',
+    });
+    setShowForm(true);
+  }
+
+  async function confirmDeleteExpense() {
+    if (!expenseToDelete) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('expenses').delete().eq('id', expenseToDelete.id);
+      if (error) {
+        toast('error', `حدث خطأ أثناء مسح المصروف: ${error.message}`);
+        return;
+      }
+      toast('success', 'تم مسح المصروف بنجاح');
+      setExpenseToDelete(null);
+      loadExpenses();
+    } finally {
+      setIsDeleting(false);
     }
-    toast('success', 'تم مسح المصروف بنجاح');
-    loadExpenses();
   }
 
   async function saveExpense() {
@@ -64,21 +100,34 @@ export default function ExpensesPage() {
       toast('error', 'يرجى ملء جميع الحقول المطلوبة');
       return;
     }
-    if (!window.confirm('هل أنت متأكد من تسجيل هذا المصروف؟')) return;
+    setIsSaving(true);
+    try {
+      const payload = {
+        branch_id: form.branch_id,
+        category: form.category,
+        amount: Number(form.amount),
+        expense_date: form.expense_date,
+        notes: form.notes || null,
+        recorded_by: profile?.id || null,
+      };
 
-    const { error } = await supabase.from('expenses').insert({
-      branch_id: form.branch_id,
-      category: form.category,
-      amount: Number(form.amount),
-      expense_date: form.expense_date,
-      notes: form.notes || null,
-      recorded_by: profile?.id,
-    });
-    if (error) { toast('error', 'خطأ في تسجيل المصروف'); return; }
-    toast('success', 'تم تسجيل المصروف بنجاح');
-    setShowForm(false);
-    setForm({ branch_id: branchFilter || '', category: 'other', amount: '', expense_date: new Date().toISOString().split('T')[0], notes: '' });
-    loadExpenses();
+      if (editingExpense) {
+        const { error } = await supabase.from('expenses').update(payload).eq('id', editingExpense.id);
+        if (error) { toast('error', `خطأ في تعديل المصروف: ${error.message}`); return; }
+        toast('success', 'تم تعديل بيانات المصروف بنجاح');
+      } else {
+        const { error } = await supabase.from('expenses').insert(payload);
+        if (error) { toast('error', `خطأ في تسجيل المصروف: ${error.message}`); return; }
+        toast('success', 'تم تسجيل المصروف بنجاح');
+      }
+
+      setShowForm(false);
+      setEditingExpense(null);
+      setForm({ branch_id: branchFilter || '', category: 'other', amount: '', expense_date: new Date().toISOString().split('T')[0], notes: '' });
+      loadExpenses();
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
@@ -108,10 +157,10 @@ export default function ExpensesPage() {
       </div>
 
       {/* Controls */}
-      <div className="flex justify-between items-center mb-4">
-        <span className="text-sm text-slate-500">{expenses.length} مصروف</span>
-        <button onClick={() => { setForm(f => ({ ...f, branch_id: branchFilter || '' })); setShowForm(true); }}
-          className="py-2 px-4 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-all cursor-pointer shadow-sm">
+      <div className="flex justify-between items-center mb-4 font-arabic">
+        <span className="text-sm text-slate-500">إجمالي المصروفات: {expenses.length}</span>
+        <button onClick={openAddForm}
+          className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all cursor-pointer shadow-sm flex items-center gap-1.5">
           + إضافة مصروف
         </button>
       </div>
@@ -145,9 +194,22 @@ export default function ExpensesPage() {
                     <td className="tabular-data font-bold text-red-600">{formatMoney(e.amount)}</td>
                     <td className="text-xs text-slate-400 max-w-[200px] truncate">{e.notes || '—'}</td>
                     <td className="px-4 text-left">
-                      <button onClick={() => deleteExpense(e.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="مسح المصروف">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button 
+                          onClick={() => openEditForm(e)} 
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" 
+                          title="تعديل المصروف"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={() => setExpenseToDelete(e)} 
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" 
+                          title="مسح المصروف"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -157,11 +219,13 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* Add Expense Modal */}
-      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="إضافة مصروف" footer={
+      {/* Add / Edit Expense Modal */}
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editingExpense ? "تعديل بيانات المصروف" : "تسجيل مصروف جديد"} footer={
         <>
-          <button onClick={saveExpense} className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-bold text-sm cursor-pointer">تسجيل</button>
-          <button onClick={() => setShowForm(false)} className="px-5 py-2.5 border-2 border-slate-200 rounded-lg text-sm font-bold cursor-pointer">إلغاء</button>
+          <button onClick={saveExpense} disabled={isSaving} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-bold text-sm cursor-pointer transition-colors">
+            {isSaving ? 'جاري الحفظ...' : editingExpense ? 'حفظ التعديلات' : 'تسجيل المصروف'}
+          </button>
+          <button onClick={() => setShowForm(false)} disabled={isSaving} className="px-5 py-2.5 border-2 border-slate-200 rounded-lg text-sm font-bold cursor-pointer hover:bg-slate-50 transition-colors">إلغاء</button>
         </>
       }>
         <div className="space-y-4">
@@ -201,6 +265,19 @@ export default function ExpensesPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Confirm Delete Expense Modal */}
+      <ConfirmModal
+        isOpen={!!expenseToDelete}
+        onClose={() => setExpenseToDelete(null)}
+        onConfirm={confirmDeleteExpense}
+        title="تأكيد مسح المصروف"
+        message={`هل أنت متأكد من مسح المصروف بقيمة (${formatMoney(expenseToDelete?.amount || 0)} ج.م) نهائياً؟\nسيتم حذف السجل من الحسابات والميزانية ولا يمكن التراجع.`}
+        confirmText="نعم، احذف المصروف"
+        cancelText="إلغاء"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { formatMoney, formatDate, buildWhatsAppLink } from '../../lib/utils';
 import { Search, Plus, Download, Edit2, Trash2, Users } from 'lucide-react';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import type { Player, Group } from '../../lib/types';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import * as XLSX from 'xlsx';
@@ -31,17 +32,22 @@ export default function PlayersPage() {
   const [filterGroup, setFilterGroup] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterBirthYear, setFilterBirthYear] = useState('');
+  const [filterPaymentType, setFilterPaymentType] = useState('');
 
   const queryIdRef = useRef(0);
 
-  // Modal
+  // Modal & Delete State
   const [showForm, setShowForm] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
+  const [playerToDelete, setPlayerToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Bulk Selection
+  // Bulk Selection & Delete
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [bulkGroup, setBulkGroup] = useState('');
   const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Form state
@@ -81,6 +87,7 @@ export default function PlayersPage() {
     if (debouncedSearch) q = q.or(`full_name.ilike.%${debouncedSearch}%,player_code.ilike.%${debouncedSearch}%`);
     if (filterGroup) q = q.eq('group_id', filterGroup);
     if (filterStatus) q = q.eq('status', filterStatus);
+    if (filterPaymentType) q = q.eq('payment_type', filterPaymentType);
     if (filterBirthYear) {
       q = q.gte('date_of_birth', `${filterBirthYear}-01-01`).lte('date_of_birth', `${filterBirthYear}-12-31`);
     }
@@ -103,7 +110,7 @@ export default function PlayersPage() {
     }
     setLoading(false);
     setInitialLoading(false);
-  }, [page, branchFilter, debouncedSearch, filterGroup, filterStatus, filterBirthYear, toast]);
+  }, [page, branchFilter, debouncedSearch, filterGroup, filterStatus, filterPaymentType, filterBirthYear, toast]);
 
   useEffect(() => { loadGroups(); }, [loadGroups]);
 
@@ -123,7 +130,7 @@ export default function PlayersPage() {
   useEffect(() => { 
     setPage(0); 
     setSelectedPlayers([]); 
-  }, [debouncedSearch, filterGroup, filterStatus, filterBirthYear, branchFilter]);
+  }, [debouncedSearch, filterGroup, filterStatus, filterPaymentType, filterBirthYear, branchFilter]);
 
   function togglePlayerSelection(id: string) {
     setSelectedPlayers(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
@@ -231,12 +238,33 @@ export default function PlayersPage() {
     loadPlayers();
   }
 
-  async function deletePlayer(id: string) {
-    if (!confirm('⚠️ تحذير: هل أنت متأكد من حذف هذا اللاعب تماماً من النظام؟\nسيؤدي هذا إلى حذف اللاعب وجميع سجلات الحضور والمدفوعات والفواتير والأطقم المرتبطة به نهائياً!')) return;
-    const { error } = await supabase.from('players').delete().eq('id', id);
-    if (error) { toast('error', `خطأ في حذف اللاعب: ${error.message}`); return; }
-    toast('success', 'تم حذف اللاعب وجميع بياناته بنجاح');
-    loadPlayers();
+  async function confirmDeleteSinglePlayer() {
+    if (!playerToDelete) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('players').delete().eq('id', playerToDelete.id);
+      if (error) { toast('error', `خطأ في حذف اللاعب: ${error.message}`); return; }
+      toast('success', `تم حذف اللاعب "${playerToDelete.name}" وجميع بياناته بنجاح`);
+      setPlayerToDelete(null);
+      loadPlayers();
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  async function confirmBulkDelete() {
+    if (selectedPlayers.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      const { error } = await supabase.from('players').delete().in('id', selectedPlayers);
+      if (error) { toast('error', `خطأ أثناء حذف اللاعبين المحددين: ${error.message}`); return; }
+      toast('success', `تم حذف ${selectedPlayers.length} لاعب بنجاح`);
+      setSelectedPlayers([]);
+      setShowBulkDeleteConfirm(false);
+      loadPlayers();
+    } finally {
+      setIsBulkDeleting(false);
+    }
   }
 
 
@@ -297,6 +325,15 @@ export default function PlayersPage() {
           <option value="suspended">موقوف</option>
         </select>
         <select
+          value={filterPaymentType}
+          onChange={(e) => setFilterPaymentType(e.target.value)}
+          className="input-field w-auto min-w-[150px]"
+        >
+          <option value="">كل أنواع الاشتراكات</option>
+          <option value="monthly">اشتراك شهري</option>
+          <option value="quarterly">لاعبين الدوري (دوري)</option>
+        </select>
+        <select
           value={filterBirthYear}
           onChange={(e) => setFilterBirthYear(e.target.value)}
           className="input-field w-auto min-w-[150px]"
@@ -313,6 +350,29 @@ export default function PlayersPage() {
           <Download size={16} /> تصدير Excel
         </button>
       </div>
+
+      {/* Bulk Action Bar */}
+      {selectedPlayers.length > 0 && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-3 animate-fade-in font-arabic">
+          <div className="text-sm font-bold text-emerald-800">
+            تم تحديد <span className="bg-emerald-600 text-white px-2 py-0.5 rounded-md font-mono">{selectedPlayers.length}</span> لاعب
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+            >
+              <Trash2 size={14} /> حذف اللاعبين المحددين
+            </button>
+            <button
+              onClick={() => setSelectedPlayers([])}
+              className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
+            >
+              إلغاء التحديد
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Results count */}
       <div className="text-sm text-slate-500 mb-3 font-medium font-arabic">
@@ -440,7 +500,7 @@ export default function PlayersPage() {
                         <button onClick={() => openEditForm(p)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
                           <Edit2 size={18} />
                         </button>
-                        <button onClick={() => deletePlayer(p.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف نهائي">
+                        <button onClick={() => setPlayerToDelete({ id: p.id, name: p.full_name })} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف نهائي">
                           <Trash2 size={18} />
                         </button>
                       </div>
@@ -492,7 +552,7 @@ export default function PlayersPage() {
                     <button onClick={() => openEditForm(p)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
                       <Edit2 size={16} />
                     </button>
-                    <button onClick={() => deletePlayer(p.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف نهائي">
+                    <button onClick={() => setPlayerToDelete({ id: p.id, name: p.full_name })} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف نهائي">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -742,6 +802,32 @@ export default function PlayersPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Confirm Single Delete Modal */}
+      <ConfirmModal
+        isOpen={!!playerToDelete}
+        onClose={() => setPlayerToDelete(null)}
+        onConfirm={confirmDeleteSinglePlayer}
+        title="تأكيد حذف اللاعب نهائياً"
+        message={`هل أنت متأكد من حذف اللاعب "${playerToDelete?.name}" تماماً من النظام؟\nسيؤدي هذا إلى حذف اللاعب وكوده وجميع سجلات الحضور والمدفوعات والفواتير المرتبطة به نهائياً.`}
+        confirmText="نعم، احذف اللاعب"
+        cancelText="إلغاء الإجراء"
+        variant="danger"
+        isLoading={isDeleting}
+      />
+
+      {/* Confirm Bulk Delete Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteConfirm}
+        onClose={() => setShowBulkDeleteConfirm(false)}
+        onConfirm={confirmBulkDelete}
+        title="تأكيد الحذف الجماعي للاعبين"
+        message={`هل أنت متأكد من حذف ${selectedPlayers.length} لاعب محدد تماماً من النظام؟\nسيتم حذف جميع سجلاتهم وحساباتهم نهائياً ولن يمكنك التراجع.`}
+        confirmText={`نعم، احذف ${selectedPlayers.length} لاعب`}
+        cancelText="إلغاء"
+        variant="danger"
+        isLoading={isBulkDeleting}
+      />
     </div>
   );
 }

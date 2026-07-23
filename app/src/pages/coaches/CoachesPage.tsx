@@ -6,7 +6,8 @@ import { formatMoney, formatDate, getCurrentMonth } from '../../lib/utils';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import { BranchBadge } from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { Users } from 'lucide-react';
+import ConfirmModal from '../../components/ui/ConfirmModal';
+import { Users, Edit2, Trash2 } from 'lucide-react';
 import type { Coach, CoachAdvance, CoachSalaryPayment } from '../../lib/types';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 
@@ -30,6 +31,24 @@ export default function CoachesPage() {
   // Add Coach Modal
   const [showAddCoach, setShowAddCoach] = useState(false);
   const [newCoach, setNewCoach] = useState({ name: '', phone: '', specialization: '', salary: '0' });
+
+  // Advance Edit & Delete State
+  const [editingAdvance, setEditingAdvance] = useState<CoachAdvance | null>(null);
+  const [advanceToDelete, setAdvanceToDelete] = useState<CoachAdvance | null>(null);
+  const [editAdvanceAmount, setEditAdvanceAmount] = useState('');
+  const [editAdvanceNotes, setEditAdvanceNotes] = useState('');
+  const [isDeletingAdvance, setIsDeletingAdvance] = useState(false);
+
+  // Salary Payment Edit & Delete State
+  const [editingSalaryPayment, setEditingSalaryPayment] = useState<CoachSalaryPayment | null>(null);
+  const [salaryPaymentToDelete, setSalaryPaymentToDelete] = useState<CoachSalaryPayment | null>(null);
+  const [editSalaryPaymentAmount, setEditSalaryPaymentAmount] = useState('');
+  const [editSalaryPaymentMonth, setEditSalaryPaymentMonth] = useState('');
+  const [isDeletingSalaryPayment, setIsDeletingSalaryPayment] = useState(false);
+
+  // Delete Coach State
+  const [coachToDelete, setCoachToDelete] = useState<Coach | null>(null);
+  const [isDeletingCoach, setIsDeletingCoach] = useState(false);
 
   const loadCoaches = useCallback(async () => {
     setLoading(true);
@@ -150,6 +169,76 @@ export default function CoachesPage() {
     openCoachDetail(selectedCoach);
   }
 
+  async function handleUpdateAdvance() {
+    if (!editingAdvance || !editAdvanceAmount) return;
+    const { error } = await supabase.from('coach_advances').update({
+      amount: Number(editAdvanceAmount),
+      notes: editAdvanceNotes || null,
+    }).eq('id', editingAdvance.id);
+    if (error) { toast('error', 'خطأ في تعديل السلفة: ' + error.message); return; }
+    toast('success', 'تم تعديل السلفة بنجاح');
+    setEditingAdvance(null);
+    if (selectedCoach) loadCoachDetails(selectedCoach.user_id);
+  }
+
+  async function confirmDeleteAdvance() {
+    if (!advanceToDelete) return;
+    setIsDeletingAdvance(true);
+    try {
+      const { error } = await supabase.from('coach_advances').delete().eq('id', advanceToDelete.id);
+      if (error) { toast('error', 'خطأ في مسح السلفة: ' + error.message); return; }
+      toast('success', 'تم مسح السلفة بنجاح');
+      setAdvanceToDelete(null);
+      if (selectedCoach) loadCoachDetails(selectedCoach.user_id);
+    } finally {
+      setIsDeletingAdvance(false);
+    }
+  }
+
+  async function handleUpdateSalaryPayment() {
+    if (!editingSalaryPayment || !editSalaryPaymentAmount) return;
+    const { error } = await supabase.from('coach_salary_payments').update({
+      amount: Number(editSalaryPaymentAmount),
+      payment_month: editSalaryPaymentMonth || editingSalaryPayment.payment_month,
+    }).eq('id', editingSalaryPayment.id);
+    if (error) { toast('error', 'خطأ في تعديل دفعة الراتب: ' + error.message); return; }
+    toast('success', 'تم تعديل دفعة الراتب بنجاح');
+    setEditingSalaryPayment(null);
+    if (selectedCoach) loadCoachDetails(selectedCoach.user_id);
+  }
+
+  async function confirmDeleteSalaryPayment() {
+    if (!salaryPaymentToDelete) return;
+    setIsDeletingSalaryPayment(true);
+    try {
+      const { error } = await supabase.from('coach_salary_payments').delete().eq('id', salaryPaymentToDelete.id);
+      if (error) { toast('error', 'خطأ في مسح دفعة الراتب: ' + error.message); return; }
+      toast('success', 'تم مسح دفعة الراتب بنجاح');
+      setSalaryPaymentToDelete(null);
+      if (selectedCoach) loadCoachDetails(selectedCoach.user_id);
+    } finally {
+      setIsDeletingSalaryPayment(false);
+    }
+  }
+
+  async function confirmDeleteCoach() {
+    if (!coachToDelete) return;
+    setIsDeletingCoach(true);
+    try {
+      await supabase.from('coach_advances').delete().eq('coach_id', coachToDelete.user_id);
+      await supabase.from('coach_salary_payments').delete().eq('coach_id', coachToDelete.user_id);
+      await supabase.from('coaches').delete().eq('user_id', coachToDelete.user_id);
+      const { error } = await supabase.from('users').delete().eq('id', coachToDelete.user_id);
+      if (error) { toast('error', 'خطأ في حذف الكابتن: ' + error.message); return; }
+      toast('success', `تم حذف الكابتن "${coachToDelete.full_name}" بجميع بياناته بنجاح`);
+      setCoachToDelete(null);
+      setSelectedCoach(null);
+      loadCoaches();
+    } finally {
+      setIsDeletingCoach(false);
+    }
+  }
+
   async function handleAddCoach() {
     if (!newCoach.name || !newCoach.phone) {
       toast('error', 'يرجى إدخال اسم ورقم المدرب');
@@ -244,16 +333,25 @@ export default function CoachesPage() {
                   <p className="text-emerald-200 text-sm">{selectedCoach.specialization || 'مدرب'} — {selectedCoach.branch_name}</p>
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  setEditSalaryValue(String(selectedCoach.base_salary));
-                  setEditSpecialization(selectedCoach.specialization || '');
-                  setShowEditSalary(true);
-                }}
-                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold transition-all border border-white/20 flex items-center gap-1 cursor-pointer"
-              >
-                ✏️ تعديل بيانات الراتب
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setEditSalaryValue(String(selectedCoach.base_salary));
+                    setEditSpecialization(selectedCoach.specialization || '');
+                    setShowEditSalary(true);
+                  }}
+                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold transition-all border border-white/20 flex items-center gap-1 cursor-pointer"
+                >
+                  ✏️ تعديل الراتب
+                </button>
+                <button
+                  onClick={() => setCoachToDelete(selectedCoach)}
+                  className="px-3 py-1.5 bg-red-500/30 hover:bg-red-500/50 text-white rounded-lg text-xs font-bold transition-all border border-red-300/30 flex items-center gap-1 cursor-pointer"
+                  title="حذف المدرب نهائياً من النظام"
+                >
+                  <Trash2 size={14} /> حذف الكابتن
+                </button>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-3 divide-x divide-slate-100 rtl:divide-x-reverse">
@@ -301,36 +399,56 @@ export default function CoachesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Advances */}
           <div className="premium-card overflow-hidden">
-            <div className="p-4 border-b border-slate-100"><h4 className="font-bold text-slate-800">السلف</h4></div>
+            <div className="p-4 border-b border-slate-100"><h4 className="font-bold text-slate-800">السلف المسجلة</h4></div>
             <table className="premium-table">
-              <thead><tr><th>التاريخ</th><th>المبلغ</th><th>ملاحظات</th></tr></thead>
+              <thead><tr><th>التاريخ</th><th>المبلغ</th><th>ملاحظات</th><th className="text-left">إجراءات</th></tr></thead>
               <tbody>
                 {advances.map(a => (
                   <tr key={a.id}>
                     <td className="text-sm">{formatDate(a.advance_date)}</td>
                     <td className="tabular-data font-semibold text-amber-600">{formatMoney(a.amount)}</td>
-                    <td className="text-xs text-slate-400">{a.notes || '—'}</td>
+                    <td className="text-xs text-slate-400 max-w-[120px] truncate">{a.notes || '—'}</td>
+                    <td className="text-left">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => { setEditingAdvance(a); setEditAdvanceAmount(String(a.amount)); setEditAdvanceNotes(a.notes || ''); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="تعديل السلفة">
+                          <Edit2 size={14} />
+                        </button>
+                        <button onClick={() => setAdvanceToDelete(a)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="مسح السلفة">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
-                {advances.length === 0 && <tr><td colSpan={3} className="text-center text-slate-400 py-6">لا توجد سلف</td></tr>}
+                {advances.length === 0 && <tr><td colSpan={4} className="text-center text-slate-400 py-6">لا توجد سلف</td></tr>}
               </tbody>
             </table>
           </div>
 
           {/* Salary Payments */}
           <div className="premium-card overflow-hidden">
-            <div className="p-4 border-b border-slate-100"><h4 className="font-bold text-slate-800">دفعات الراتب</h4></div>
+            <div className="p-4 border-b border-slate-100"><h4 className="font-bold text-slate-800">دفعات الراتب المسددة</h4></div>
             <table className="premium-table">
-              <thead><tr><th>الشهر</th><th>المبلغ</th><th>تاريخ الصرف</th></tr></thead>
+              <thead><tr><th>الشهر</th><th>المبلغ</th><th>تاريخ الصرف</th><th className="text-left">إجراءات</th></tr></thead>
               <tbody>
                 {salaryPayments.map(s => (
                   <tr key={s.id}>
-                    <td className="text-sm">{s.payment_month}</td>
+                    <td className="text-sm font-bold">{s.payment_month}</td>
                     <td className="tabular-data font-semibold text-emerald-600">{formatMoney(s.amount)}</td>
                     <td className="text-sm">{formatDate(s.payment_date)}</td>
+                    <td className="text-left">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => { setEditingSalaryPayment(s); setEditSalaryPaymentAmount(String(s.amount)); setEditSalaryPaymentMonth(s.payment_month); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="تعديل دفعة الراتب">
+                          <Edit2 size={14} />
+                        </button>
+                        <button onClick={() => setSalaryPaymentToDelete(s)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="مسح دفعة الراتب">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
-                {salaryPayments.length === 0 && <tr><td colSpan={3} className="text-center text-slate-400 py-6">لا توجد دفعات</td></tr>}
+                {salaryPayments.length === 0 && <tr><td colSpan={4} className="text-center text-slate-400 py-6">لا توجد دفعات</td></tr>}
               </tbody>
             </table>
           </div>
@@ -390,6 +508,71 @@ export default function CoachesPage() {
               <input type="month" value={salaryMonth} onChange={(e) => setSalaryMonth(e.target.value)} className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none" /></div>
           </div>
         </Modal>
+
+        {/* Edit Advance Modal */}
+        <Modal isOpen={!!editingAdvance} onClose={() => setEditingAdvance(null)} title="تعديل بيانات السلفة" footer={
+          <><button onClick={handleUpdateAdvance} className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm cursor-pointer">حفظ التغييرات</button>
+            <button onClick={() => setEditingAdvance(null)} className="px-5 py-2 border border-slate-200 rounded-lg text-sm cursor-pointer">إلغاء</button></>
+        }>
+          <div className="space-y-4 font-[Cairo]">
+            <div><label className="block text-sm font-semibold mb-1 text-slate-700">مبلغ السلفة *</label>
+              <input type="number" value={editAdvanceAmount} onChange={(e) => setEditAdvanceAmount(e.target.value)} className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none" dir="ltr" /></div>
+            <div><label className="block text-sm font-semibold mb-1 text-slate-700">ملاحظات</label>
+              <input value={editAdvanceNotes} onChange={(e) => setEditAdvanceNotes(e.target.value)} className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none" /></div>
+          </div>
+        </Modal>
+
+        {/* Edit Salary Payment Modal */}
+        <Modal isOpen={!!editingSalaryPayment} onClose={() => setEditingSalaryPayment(null)} title="تعديل دفعة الراتب" footer={
+          <><button onClick={handleUpdateSalaryPayment} className="px-5 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm cursor-pointer">حفظ التغييرات</button>
+            <button onClick={() => setEditingSalaryPayment(null)} className="px-5 py-2 border border-slate-200 rounded-lg text-sm cursor-pointer">إلغاء</button></>
+        }>
+          <div className="space-y-4 font-[Cairo]">
+            <div><label className="block text-sm font-semibold mb-1 text-slate-700">المبلغ *</label>
+              <input type="number" value={editSalaryPaymentAmount} onChange={(e) => setEditSalaryPaymentAmount(e.target.value)} className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none" dir="ltr" /></div>
+            <div><label className="block text-sm font-semibold mb-1 text-slate-700">الشهر *</label>
+              <input type="month" value={editSalaryPaymentMonth} onChange={(e) => setEditSalaryPaymentMonth(e.target.value)} className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-lg text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none" /></div>
+          </div>
+        </Modal>
+
+        {/* Confirm Delete Advance Modal */}
+        <ConfirmModal
+          isOpen={!!advanceToDelete}
+          onClose={() => setAdvanceToDelete(null)}
+          onConfirm={confirmDeleteAdvance}
+          title="تأكيد مسح السلفة"
+          message={`هل أنت متأكد من مسح هذه السلفة بقيمة (${formatMoney(advanceToDelete?.amount || 0)} ج.م)؟\nسيتم تعديل صافي المستحق للكابتن تلقائياً.`}
+          confirmText="نعم، احذف السلفة"
+          cancelText="إلغاء"
+          variant="danger"
+          isLoading={isDeletingAdvance}
+        />
+
+        {/* Confirm Delete Salary Payment Modal */}
+        <ConfirmModal
+          isOpen={!!salaryPaymentToDelete}
+          onClose={() => setSalaryPaymentToDelete(null)}
+          onConfirm={confirmDeleteSalaryPayment}
+          title="تأكيد مسح دفعة الراتب"
+          message={`هل أنت متأكد من مسح دفعة الراتب بقيمة (${formatMoney(salaryPaymentToDelete?.amount || 0)} ج.م) لشهر ${salaryPaymentToDelete?.payment_month}؟`}
+          confirmText="نعم، احذف الدفعة"
+          cancelText="إلغاء"
+          variant="danger"
+          isLoading={isDeletingSalaryPayment}
+        />
+
+        {/* Confirm Delete Coach Modal */}
+        <ConfirmModal
+          isOpen={!!coachToDelete}
+          onClose={() => setCoachToDelete(null)}
+          onConfirm={confirmDeleteCoach}
+          title="تأكيد حذف المدرب نهائياً"
+          message={`هل أنت متأكد من حذف الكابتن "${coachToDelete?.full_name}" تماماً من النظام؟\nسيؤدي هذا إلى حذف بياناته وسجل سلفه ودفعات رواتبه نهائياً ولا يمكن التراجع عن ذلك.`}
+          confirmText="نعم، احذف المدرب"
+          cancelText="إلغاء الإجراء"
+          variant="danger"
+          isLoading={isDeletingCoach}
+        />
       </div>
     );
   }

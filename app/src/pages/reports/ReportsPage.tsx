@@ -8,9 +8,11 @@ import { BranchBadge } from '../../components/ui/Badge';
 import type { NetProfit, AttendanceSummary, LedgerTransaction } from '../../lib/types';
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
+import { PieChart } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import ProfitExplanationModal from '../../components/financial/ProfitExplanationModal';
 
 type ReportType = 'monthly' | 'ledger' | 'attendance' | 'debts';
 
@@ -19,6 +21,7 @@ export default function ReportsPage() {
   const { toast } = useToast();
 
   const [reportType, setReportType] = useState<ReportType>('monthly');
+  const [showProfitModal, setShowProfitModal] = useState(false);
   const [month, setMonth] = useState(getCurrentMonth());
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30);
@@ -266,8 +269,15 @@ export default function ReportsPage() {
           {reportType === 'monthly' && (
             <div className="space-y-5">
               <div className="premium-card overflow-hidden">
-                <div className="px-6 py-5 border-b border-[#e2e8f0] bg-white">
-                  <h4 className="font-bold text-slate-800">التقرير المالي — {formatMonth(month)}</h4>
+                <div className="px-6 py-5 border-b border-[#e2e8f0] bg-white flex flex-wrap items-center justify-between gap-3">
+                  <h4 className="font-bold text-slate-800 font-arabic">التقرير المالي — {formatMonth(month)}</h4>
+                  <button
+                    onClick={() => setShowProfitModal(true)}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-300 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer font-arabic hover:scale-105"
+                  >
+                    <PieChart size={15} className="text-emerald-400" />
+                    <span>🔍 تفاصيل ودليل معادلة صافي الربح</span>
+                  </button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="premium-table">
@@ -470,6 +480,15 @@ export default function ReportsPage() {
           )}
         </div>
       )}
+
+      {/* Financial Profit Explanation Modal */}
+      <ProfitExplanationModal
+        isOpen={showProfitModal}
+        onClose={() => setShowProfitModal(false)}
+        month={month}
+        profitData={profitData}
+        branchName={selectedBranch?.name || 'جميع الفروع'}
+      />
     </div>
   );
 }

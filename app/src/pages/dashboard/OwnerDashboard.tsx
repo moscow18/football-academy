@@ -3,10 +3,12 @@ import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatMonth, getActiveFinancialMonth } from '../../lib/utils';
-import { Users, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { Users, TrendingUp, TrendingDown, Activity, PieChart } from 'lucide-react';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import ProfitExplanationModal from '../../components/financial/ProfitExplanationModal';
+import type { NetProfit } from '../../lib/types';
 
 interface DashboardStats {
   activePlayers: number;
@@ -23,6 +25,8 @@ export default function OwnerDashboard() {
   const { selectedBranchId, selectedBranch } = useBranch();
   const { profile } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [profitData, setProfitData] = useState<NetProfit[]>([]);
+  const [showProfitModal, setShowProfitModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => 
@@ -54,7 +58,8 @@ export default function OwnerDashboard() {
         { count: playersCount },
         { data: branchData },
         { data: trendData },
-        { data: recentPlayersData }
+        { data: recentPlayersData },
+        { data: rawProfitData }
       ] = await Promise.all([
         playersQuery,
         supabase.rpc('get_monthly_branch_stats', { p_month: selectedMonth }),
@@ -63,8 +68,11 @@ export default function OwnerDashboard() {
           .from('players')
           .select('id, full_name, branch_id, status, created_at, branches(name)')
           .order('created_at', { ascending: false })
-          .limit(5)
+          .limit(5),
+        supabase.rpc('rpc_net_profit', { p_branch_id: branchFilter, p_month: selectedMonth })
       ]);
+
+      setProfitData((rawProfitData as NetProfit[]) || []);
 
       let activePlayers = playersCount || 0;
 
@@ -137,15 +145,24 @@ export default function OwnerDashboard() {
           <p className="text-slate-500 font-medium text-sm font-arabic">التحليل المالي والإحصائيات الخاصة باللاعبين.</p>
         </div>
         
-        {/* Month Selector */}
-        <div className="flex items-center gap-2 bg-white px-4 py-2 border border-slate-200 rounded-xl shadow-sm self-start sm:self-auto">
-          <span className="text-slate-500 font-bold text-sm font-arabic">الشهر المالي:</span>
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="border-none bg-transparent font-tabular font-bold text-slate-700 focus:outline-none cursor-pointer focus:ring-0 text-sm font-[Cairo]"
-          />
+        {/* Controls Bar */}
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          <button
+            onClick={() => setShowProfitModal(true)}
+            className="px-4 py-2 bg-gradient-to-r from-slate-900 to-emerald-950 text-emerald-300 border border-emerald-500/40 hover:border-emerald-400 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer font-arabic hover:scale-105"
+          >
+            <PieChart size={16} className="text-emerald-400" />
+            <span>🔍 تفاصيل حساب صافي الربح والشرح</span>
+          </button>
+          <div className="flex items-center gap-2 bg-white px-4 py-2 border border-slate-200 rounded-xl shadow-sm">
+            <span className="text-slate-500 font-bold text-sm font-arabic">الشهر المالي:</span>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="border-none bg-transparent font-tabular font-bold text-slate-700 focus:outline-none cursor-pointer focus:ring-0 text-sm font-[Cairo]"
+            />
+          </div>
         </div>
       </div>
 
@@ -171,10 +188,13 @@ export default function OwnerDashboard() {
         </div>
 
         {/* Net Profit */}
-        <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => setShowProfitModal(true)}
+          className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5"
+        >
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">صافي الربح ({formatMonth(selectedMonth)})</span>
-            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide group-hover:text-emerald-700 transition-colors">صافي الربح ({formatMonth(selectedMonth)})</span>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
               <TrendingUp size={20} strokeWidth={2} />
             </div>
           </div>
@@ -184,9 +204,12 @@ export default function OwnerDashboard() {
             </h3>
             <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
           </div>
-          <div className="mt-3 flex items-center gap-1.5">
+          <div className="mt-3 flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 font-arabic">
               {profile?.role === 'owner' ? 'بعد خصم إجمالي المصروفات' : 'بعد خصم مصروفات ورواتب الفرع'}
+            </span>
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1 font-arabic">
+              🔍 تفاصيل المعادلة
             </span>
           </div>
         </div>
@@ -376,6 +399,15 @@ export default function OwnerDashboard() {
         )}
 
       </div>
+
+      {/* Financial Profit Explanation Modal */}
+      <ProfitExplanationModal
+        isOpen={showProfitModal}
+        onClose={() => setShowProfitModal(false)}
+        month={selectedMonth}
+        profitData={profitData}
+        branchName={selectedBranch?.name || 'جميع الفروع'}
+      />
     </div>
   );
 }
