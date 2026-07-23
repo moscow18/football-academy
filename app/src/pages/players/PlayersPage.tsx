@@ -313,10 +313,39 @@ export default function PlayersPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div>
+    <div className="space-y-6 animate-fade-in font-[Cairo] pb-12">
+      {/* Header Banner */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 flex items-center gap-2">
+            👥 إدارة وشؤون اللاعبين
+          </h1>
+          <p className="text-slate-500 text-sm font-semibold mt-1">
+            متابعة سجلات اللاعبين، الاشتراكات الشهرية، ولاعبي الدوري والمجموعات
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openAddForm}
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-extrabold text-sm transition-all shadow-md flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95"
+          >
+            <Plus size={18} />
+            <span>إضافة لاعب جديد</span>
+          </button>
+          <button
+            onClick={exportExcel}
+            className="px-4 py-2.5 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-sm transition-all shadow-2xs flex items-center gap-2 cursor-pointer"
+          >
+            <Download size={16} />
+            <span>تصدير Excel</span>
+          </button>
+        </div>
+      </div>
+
       {/* Filter Bar */}
-      <div className="flex flex-wrap gap-3 mb-5 items-center">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-[220px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
             <Search size={16} />
           </span>
@@ -324,8 +353,8 @@ export default function PlayersPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="بحث بالاسم أو الكود..."
-            className="input-field pl-10"
+            placeholder="🔍 بحث باسم اللاعب أو الكود..."
+            className="w-full py-2.5 px-4 pr-4 pl-10 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:border-emerald-500 focus:bg-white focus:outline-none transition-colors"
           />
         </div>
         <select
