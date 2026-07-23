@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
-import { formatMoney, formatMonth, getCurrentMonth, formatDate } from '../../lib/utils';
+import { formatMoney, formatMonth, getActiveFinancialMonth, formatDate } from '../../lib/utils';
 import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
@@ -33,13 +33,24 @@ const CLOSING_DAYS: Record<string, number> = {
 };
 
 export default function DebtsPage() {
-  const { branchFilter, branches } = useBranch();
+  const { branchFilter, selectedBranch, branches } = useBranch();
   const { toast } = useToast();
 
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+  // Active financial month based on branch closing day rule
+  const [selectedMonth, setSelectedMonth] = useState(() => getActiveFinancialMonth(selectedBranch));
   const [playersList, setPlayersList] = useState<SimpleMonthPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
+
+  // Update selected month when branch filter changes
+  const [prevBranchId, setPrevBranchId] = useState<string | null>(null);
+  useEffect(() => {
+    const curId = selectedBranch?.id || null;
+    if (curId !== prevBranchId) {
+      setSelectedMonth(getActiveFinancialMonth(selectedBranch));
+      setPrevBranchId(curId);
+    }
+  }, [selectedBranch, prevBranchId]);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
@@ -63,7 +74,7 @@ export default function DebtsPage() {
         .eq('status', 'active')
         .gt('fee_amount', 0);
 
-      // 2. Fetch payments recorded for the selected month (period_covered = selectedMonth)
+      // 2. Fetch payments recorded for selected financial month
       const payQuery = supabase
         .from('payments')
         .select('id, player_id, amount, payment_date, period_covered')
@@ -79,36 +90,15 @@ export default function DebtsPage() {
         paidPlayerMap.set(p.player_id, { payment_date: p.payment_date, payment_id: p.id });
       });
 
-      const [selY, selM] = selectedMonth.split('-').map(Number);
-
-      // ⚡ FILTER PLAYERS DUE FOR selectedMonth:
-      // If player registered in selY-selM AFTER branch closing_day -> NOT DUE for selY-selM! Due starting next month!
       const duePlayers: SimpleMonthPlayer[] = [];
 
       (playersData || []).forEach((p: any) => {
-        // ⚡ EXCLUDE LEAGUE PLAYERS (League players pay quarterly in PeriodicSubscriptionsPage)
+        // Exclude league players (league players pay quarterly in PeriodicSubscriptionsPage)
         if (p.payment_type === 'quarterly' || Number(p.fee_amount_periodic || 0) > 0) {
           return;
         }
 
-        const regDateStr = p.registration_date || (p.created_at ? p.created_at.split('T')[0] : '2026-07-01');
-        const regDate = new Date(regDateStr);
-        const regY = regDate.getFullYear();
-        const regM = regDate.getMonth() + 1;
-        const regD = regDate.getDate();
-
         const branchName = p.branches?.name || '';
-        const closingDay = p.branches?.closing_day || CLOSING_DAYS[branchName.trim()] || 30;
-
-        // Check if player registered AFTER selectedMonth OR (in selectedMonth AFTER closingDay)
-        if (regY > selY || (regY === selY && regM > selM)) {
-          return;
-        }
-
-        if (regY === selY && regM === selM && regD > closingDay) {
-          return;
-        }
-
         const paymentInfo = paidPlayerMap.get(p.id);
 
         duePlayers.push({
@@ -125,7 +115,7 @@ export default function DebtsPage() {
           is_paid: !!paymentInfo,
           payment_date: paymentInfo?.payment_date,
           payment_id: paymentInfo?.payment_id,
-          registration_date: regDateStr,
+          registration_date: p.registration_date,
         });
       });
 
@@ -218,14 +208,14 @@ export default function DebtsPage() {
     }
   };
 
-  // ✅ Settle entire branch (PREVENT DUPLICATE PAYMENTS)
+  // ✅ Settle entire branch for selected financial month
   const handleSettleBranch = async (branchId: string, branchName: string) => {
     const unpaidPlayers = playersList.filter(p => p.branch_id === branchId && !p.is_paid);
     if (unpaidPlayers.length === 0) {
-      toast('info', `جميع لاعبي فرع (${branchName}) المستحقين لشهر ${formatMonth(selectedMonth)} مسددين بالفعل ✅`);
+      toast('info', `جميع لاعبي فرع (${branchName}) مسددين بالفعل لشهر ${formatMonth(selectedMonth)} ✅`);
       return;
     }
-    if (!window.confirm(`⚠️ تسديد جماعي\n\nهل أنت متأكد من تسديد اشتراك شهر (${formatMonth(selectedMonth)}) لجميع لاعبي فرع (${branchName}) غير المسددين (${unpaidPlayers.length} لاعب)؟`)) return;
+    if (!window.confirm(`⚠️ تسديد جماعي للشهر المالي (${formatMonth(selectedMonth)})\n\nهل أنت متأكد من تسديد اشتراك شهر (${formatMonth(selectedMonth)}) لجميع لاعبي فرع (${branchName}) غير المسددين (${unpaidPlayers.length} لاعب)؟`)) return;
 
     setSettlingBranchId(branchId);
     try {
@@ -243,7 +233,7 @@ export default function DebtsPage() {
 
       const { error } = await supabase.from('payments').insert(newPayments);
       if (error) throw error;
-      toast('success', `✅ تم تسديد شهر ${formatMonth(selectedMonth)} لجميع لاعبي فرع (${branchName}) المستحقين — ${unpaidPlayers.length} لاعب`);
+      toast('success', `✅ تم تسديد شهر ${formatMonth(selectedMonth)} لجميع لاعبي فرع (${branchName}) — ${unpaidPlayers.length} لاعب`);
       setTimeout(() => loadMonthData(), 800);
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء التسديد الجماعي: ' + err.message);
@@ -307,12 +297,12 @@ export default function DebtsPage() {
               ⚽ متابعة سداد الاشتراكات الشهرية
             </h1>
             <p className="text-slate-500 text-sm font-semibold mt-1">
-              مستحقات شهر <strong className="text-emerald-700 font-tabular">{formatMonth(selectedMonth)}</strong> حسب أيام تقفيل الفروع (قبل التقفيل = الشهر الحالي، بعد التقفيل = الشهر القادم)
+              متابعة واستحقاق الاشتراكات حسب الشهر المالي النشط لكل فرع (الشهر الحالي أو الشهر الجديد بعد التقفيل)
             </p>
           </div>
           <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 border border-slate-200 rounded-xl shadow-2xs">
             <Calendar size={18} className="text-emerald-600" />
-            <span className="text-slate-500 font-bold text-sm">اختر الشهر:</span>
+            <span className="text-slate-500 font-bold text-sm">الشهر المالي النشط:</span>
             <input
               type="month"
               value={selectedMonth}
@@ -365,7 +355,7 @@ export default function DebtsPage() {
               <div className="grid grid-cols-3 gap-2 mb-5">
                 <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
                   <div className="text-lg md:text-xl font-extrabold text-slate-800 font-tabular">{stats.total}</div>
-                  <div className="text-[10px] font-bold text-slate-500">مستحقين لشهر {formatMonth(selectedMonth)}</div>
+                  <div className="text-[10px] font-bold text-slate-500">إجمالي اللاعبين</div>
                 </div>
                 <div className={`rounded-xl p-3 text-center border ${isAllPaid ? 'bg-emerald-100 border-emerald-200' : 'bg-emerald-50 border-emerald-100'}`}>
                   <div className="text-lg md:text-xl font-extrabold text-emerald-700 font-tabular">{stats.paid}</div>
@@ -506,7 +496,7 @@ export default function DebtsPage() {
           PLAYERS TABLE
       ═══════════════════════════════════════════════════════════════ */}
       {filteredData.length === 0 ? (
-        <EmptyState icon="✅" title="لا توجد نتائج" subtitle="لم يتم العثور على لاعبين مستحقين لشهر السداد المختار" />
+        <EmptyState icon="✅" title="لا توجد نتائج" subtitle="لم يتم العثور على لاعبين يطابقون الفلتر" />
       ) : (
         <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200">
           <div className="overflow-x-auto">
@@ -518,7 +508,7 @@ export default function DebtsPage() {
                   {!branchFilter && <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm">الفرع</th>}
                   <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm hidden md:table-cell">المجموعة</th>
                   <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm">الاشتراك</th>
-                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm text-center">الحالة</th>
+                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm text-center">حالة شهر ({formatMonth(selectedMonth)})</th>
                   <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm text-center">إجراء</th>
                 </tr>
               </thead>
@@ -590,7 +580,7 @@ export default function DebtsPage() {
       <Modal
         isOpen={!!playerToPay}
         onClose={() => setPlayerToPay(null)}
-        title="🟢 تسديد اشتراك الشهر"
+        title="🟢 تسديد اشتراك الشهر المالي"
         footer={
           <div className="flex gap-2 justify-end">
             <button
@@ -609,7 +599,7 @@ export default function DebtsPage() {
         <div className="space-y-4">
           <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-emerald-950 text-sm font-bold space-y-1">
             <div>اللاعب: <span className="font-extrabold text-emerald-900">{playerToPay?.full_name}</span></div>
-            <div>الشهر: <span className="font-extrabold text-emerald-700 font-tabular">{formatMonth(selectedMonth)}</span></div>
+            <div>الشهر المالي: <span className="font-extrabold text-emerald-700 font-tabular">{formatMonth(selectedMonth)}</span></div>
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">المبلغ (ج.م)</label>
