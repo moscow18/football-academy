@@ -7,7 +7,7 @@ import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
-import { CheckCircle2, XCircle, Search, Check, PauseCircle, Calendar, Building2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Check, PauseCircle, Calendar, Building2, RotateCcw } from 'lucide-react';
 
 interface SimpleMonthPlayer {
   id: string;
@@ -24,6 +24,13 @@ interface SimpleMonthPlayer {
   payment_date?: string;
   payment_id?: string;
 }
+
+// Closing days per branch (hardcoded as reference, actual values from DB)
+const CLOSING_DAYS: Record<string, number> = {
+  'الثلاثي': 20,
+  'ملعب جرين هيلز': 30,
+  'رويال': 1,
+};
 
 export default function DebtsPage() {
   const { branchFilter, branches } = useBranch();
@@ -43,22 +50,18 @@ export default function DebtsPage() {
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState<'cash' | 'transfer'>('cash');
   const [isSubmittingPay, setIsSubmittingPay] = useState(false);
-  const [isBulkBranchSubmitting, setIsBulkBranchSubmitting] = useState(false);
-  const [showBranchSettleModal, setShowBranchSettleModal] = useState(false);
+  const [settlingBranchId, setSettlingBranchId] = useState<string | null>(null);
+  const [rollingBackBranchId, setRollingBackBranchId] = useState<string | null>(null);
 
   const loadMonthData = useCallback(async () => {
     setLoading(true);
     try {
-      const branchId = branchFilter || null;
-
-      // 1. Fetch active monthly players ONLY (status = active)
+      // 1. Fetch ALL active monthly players (across all branches)
       let pQuery = supabase
         .from('players')
         .select('id, full_name, player_code, branch_id, fee_amount, phone, parent_phone, status, groups(name), branches(name)')
         .eq('status', 'active')
         .gt('fee_amount', 0);
-
-      if (branchId) pQuery = pQuery.eq('branch_id', branchId);
 
       // 2. Fetch payments for the selected month
       const startOfMonth = `${selectedMonth}-01`;
@@ -108,35 +111,48 @@ export default function DebtsPage() {
       setLoading(false);
       setInitialLoading(false);
     }
-  }, [branchFilter, selectedMonth]);
+  }, [selectedMonth]);
 
   useEffect(() => {
     loadMonthData();
   }, [loadMonthData]);
 
-  // ⚡ Realtime: auto-refresh when players or payments change
   useRealtimeRefresh(['players', 'payments'], loadMonthData);
 
-  // Filtered players
+  // === Per-branch stats ===
+  const getBranchStats = (branchId: string) => {
+    const branchPlayers = playersList.filter(p => p.branch_id === branchId);
+    const paid = branchPlayers.filter(p => p.is_paid).length;
+    const unpaid = branchPlayers.filter(p => !p.is_paid).length;
+    const collected = branchPlayers.filter(p => p.is_paid).reduce((s, p) => s + p.fee_amount, 0);
+    return { total: branchPlayers.length, paid, unpaid, collected };
+  };
+
+  // Get closing day display for a branch
+  const getClosingDayLabel = (branchName: string, closingDay?: number) => {
+    const cd = closingDay || CLOSING_DAYS[branchName.trim()] || 30;
+    return `يوم ${cd} من كل شهر`;
+  };
+
+  // Filtered players (by selected branch + status + search)
   const filteredData = playersList.filter((p) => {
+    if (branchFilter && p.branch_id !== branchFilter) return false;
     if (statusFilter === 'paid' && !p.is_paid) return false;
     if (statusFilter === 'unpaid' && p.is_paid) return false;
     if (searchQuery && !p.full_name.includes(searchQuery) && !p.player_code.includes(searchQuery)) return false;
     return true;
   });
 
-  // KPI Totals
-  const paidPlayersCount = playersList.filter((p) => p.is_paid).length;
-  const unpaidPlayersCount = playersList.filter((p) => !p.is_paid).length;
-  const totalCollectedThisMonth = playersList
-    .filter((p) => p.is_paid)
-    .reduce((s, p) => s + p.fee_amount, 0);
+  // Global KPIs (for current view)
+  const viewPlayers = branchFilter ? playersList.filter(p => p.branch_id === branchFilter) : playersList;
+  const paidPlayersCount = viewPlayers.filter(p => p.is_paid).length;
+  const unpaidPlayersCount = viewPlayers.filter(p => !p.is_paid).length;
+  const totalCollectedThisMonth = viewPlayers.filter(p => p.is_paid).reduce((s, p) => s + p.fee_amount, 0);
 
-  // Current branch name
   const selectedBranchObj = branches.find((b) => b.id === branchFilter);
   const currentBranchTitle = selectedBranchObj ? selectedBranchObj.name : 'جميع الفروع';
 
-  // 1-Click Pay Single Player
+  // === Actions ===
   const openPayModal = (player: SimpleMonthPlayer) => {
     setPlayerToPay(player);
     setPayAmount(String(player.fee_amount || 0));
@@ -150,7 +166,6 @@ export default function DebtsPage() {
       toast('error', 'يرجى إدخال مبلغ سداد صحيح');
       return;
     }
-
     setIsSubmittingPay(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
@@ -163,12 +178,9 @@ export default function DebtsPage() {
         period_covered: selectedMonth,
         notes: `سداد اشتراك شهر ${formatMonth(selectedMonth)}`,
       });
-
       if (error) throw error;
-
       toast('success', `تم تسجيل سداد شهر ${formatMonth(selectedMonth)} للاعب (${playerToPay.full_name}) بنجاح ✅`);
       setPlayerToPay(null);
-      // Wait a moment for DB to propagate, then reload
       setTimeout(() => loadMonthData(), 500);
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء تسديد الاشتراك: ' + err.message);
@@ -177,71 +189,79 @@ export default function DebtsPage() {
     }
   };
 
-  // Bulk Settle FOR A SPECIFIC TARGET BRANCH
-  const settleSpecificBranch = async (targetBranchId: string, targetBranchName: string) => {
-    setIsBulkBranchSubmitting(true);
+  // ✅ Settle entire branch
+  const handleSettleBranch = async (branchId: string, branchName: string) => {
+    const unpaidPlayers = playersList.filter(p => p.branch_id === branchId && !p.is_paid);
+    if (unpaidPlayers.length === 0) {
+      toast('info', `جميع لاعبي فرع (${branchName}) مسددين بالفعل لشهر ${formatMonth(selectedMonth)} ✅`);
+      return;
+    }
+    if (!window.confirm(`⚠️ تسديد جماعي\n\nهل أنت متأكد من تسديد اشتراك شهر (${formatMonth(selectedMonth)}) لجميع لاعبي فرع (${branchName}) البالغ عددهم ${unpaidPlayers.length} لاعب دفعة واحدة؟`)) return;
+
+    setSettlingBranchId(branchId);
     try {
-      const unpaidPlayers = playersList.filter((p) => p.branch_id === targetBranchId && !p.is_paid);
-      if (unpaidPlayers.length === 0) {
-        toast('info', `جميع لاعبي فرع (${targetBranchName}) مسددين بالفعل لهذا الشهر ✅`);
-        setShowBranchSettleModal(false);
-        return;
-      }
-
-      if (!window.confirm(`هل أنت متأكد من تسديد اشتراك شهر (${formatMonth(selectedMonth)}) لجميع لاعبي فرع (${targetBranchName}) البالغ عددهم ${unpaidPlayers.length} لاعب؟`)) {
-        setIsBulkBranchSubmitting(false);
-        return;
-      }
-
       const todayStr = new Date().toISOString().split('T')[0];
-      const newPayments = unpaidPlayers.map((p) => ({
+      const newPayments = unpaidPlayers.map(p => ({
         player_id: p.id,
         branch_id: p.branch_id,
         amount: p.fee_amount,
         payment_date: todayStr,
         method: 'cash',
         period_covered: selectedMonth,
-        notes: `سداد جماعي لفرع ${targetBranchName} لشهر ${formatMonth(selectedMonth)}`,
+        notes: `سداد جماعي لفرع ${branchName} لشهر ${formatMonth(selectedMonth)}`,
       }));
-
       const { error } = await supabase.from('payments').insert(newPayments);
       if (error) throw error;
-
-      toast('success', `تم تسديد اشتراك شهر ${formatMonth(selectedMonth)} لجميع لاعبي فرع (${targetBranchName}) لـ ${unpaidPlayers.length} لاعب بنجاح ✅`);
-      setShowBranchSettleModal(false);
-      // Wait for DB propagation then reload fresh data
+      toast('success', `✅ تم تسديد شهر ${formatMonth(selectedMonth)} لجميع لاعبي فرع (${branchName}) — ${unpaidPlayers.length} لاعب`);
       setTimeout(() => loadMonthData(), 800);
     } catch (err: any) {
-      toast('error', 'حدث خطأ أثناء التسديد الجماعي للفرع: ' + err.message);
+      toast('error', 'حدث خطأ أثناء التسديد الجماعي: ' + err.message);
     } finally {
-      setIsBulkBranchSubmitting(false);
+      setSettlingBranchId(null);
     }
   };
 
-  const handleHeaderBranchSettleClick = () => {
-    if (branchFilter) {
-      const bObj = branches.find((b) => b.id === branchFilter);
-      settleSpecificBranch(branchFilter, bObj ? bObj.name : 'الفرع المحدد');
-    } else {
-      setShowBranchSettleModal(true);
+  // 🔄 Rollback: delete all payments for this branch + this month
+  const handleRollbackBranch = async (branchId: string, branchName: string) => {
+    const paidPlayers = playersList.filter(p => p.branch_id === branchId && p.is_paid);
+    if (paidPlayers.length === 0) {
+      toast('info', `لا توجد دفعات مسجلة لفرع (${branchName}) في شهر ${formatMonth(selectedMonth)} لإرجاعها`);
+      return;
     }
-  };
+    if (!window.confirm(`⚠️ إرجاع التسديد الجماعي\n\nهل أنت متأكد من إرجاع جميع دفعات شهر (${formatMonth(selectedMonth)}) لفرع (${branchName})؟\n\nسيتم حذف ${paidPlayers.length} عملية دفع نهائياً!`)) return;
 
-  // Freeze / Suspend Player
-  const handleFreezePlayer = async (player: SimpleMonthPlayer) => {
-    if (!window.confirm(`هل أنت متأكد من تجميد حساب اللاعب (${player.full_name}) وإيقاف جميع اشتراكاته فوراً؟\n\nلن يظهر هذا اللاعب في المديونيات أو التحصيل بعد الآن.`)) return;
-
+    setRollingBackBranchId(branchId);
     try {
+      const startOfMonth = `${selectedMonth}-01`;
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      const endOfMonth = `${selectedMonth}-${lastDay < 10 ? '0' + lastDay : lastDay}`;
+
       const { error } = await supabase
-        .from('players')
-        .update({ status: 'suspended' })
-        .eq('id', player.id);
+        .from('payments')
+        .delete()
+        .eq('branch_id', branchId)
+        .gte('payment_date', startOfMonth)
+        .lte('payment_date', endOfMonth);
 
       if (error) throw error;
+      toast('success', `🔄 تم إرجاع جميع دفعات شهر ${formatMonth(selectedMonth)} لفرع (${branchName}) بنجاح — ${paidPlayers.length} عملية`);
+      setTimeout(() => loadMonthData(), 800);
+    } catch (err: any) {
+      toast('error', 'حدث خطأ أثناء إرجاع الدفعات: ' + err.message);
+    } finally {
+      setRollingBackBranchId(null);
+    }
+  };
 
-      toast('success', `تم تجميد حساب اللاعب (${player.full_name}) وإيقاف جميع اشتراكاته بنجاح ⏸️`);
-      setPlayersList((prev) => prev.filter((p) => p.id !== player.id));
-      loadMonthData();
+  // Freeze Player
+  const handleFreezePlayer = async (player: SimpleMonthPlayer) => {
+    if (!window.confirm(`هل أنت متأكد من تجميد حساب اللاعب (${player.full_name}) وإيقاف جميع اشتراكاته فوراً؟`)) return;
+    try {
+      const { error } = await supabase.from('players').update({ status: 'suspended' }).eq('id', player.id);
+      if (error) throw error;
+      toast('success', `تم تجميد حساب اللاعب (${player.full_name}) بنجاح ⏸️`);
+      setPlayersList(prev => prev.filter(p => p.id !== player.id));
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء تجميد اللاعب: ' + err.message);
     }
@@ -250,201 +270,284 @@ export default function DebtsPage() {
   if (initialLoading) return <PageLoading />;
 
   return (
-    <div className={`space-y-6 animate-fade-in ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+    <div className={`space-y-6 animate-fade-in font-[Cairo] ${loading && !initialLoading ? 'opacity-60 pointer-events-none' : ''}`}>
 
-      {/* Header Banner */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 font-arabic flex items-center gap-2">
-            ⚽ متابعة سداد الاشتراكات الشهرية ({currentBranchTitle})
-          </h1>
-          <p className="text-slate-500 text-sm font-medium mt-1 font-arabic">
-            جدول ميسّر لمتابعة سداد كل لاعب لشهر <strong className="text-emerald-700 font-tabular">{formatMonth(selectedMonth)}</strong> بنقرة واحدة ✅
-          </p>
-        </div>
-
-        {/* Month Selector & Branch Settle Button */}
-        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto font-[Cairo]">
-          <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border border-slate-200 rounded-xl shadow-2xs">
-            <Calendar size={16} className="text-emerald-600" />
-            <span className="text-slate-500 font-bold text-xs font-arabic">اختر الشهر:</span>
+      {/* ═══════════════════════════════════════════════════════════════
+          HEADER + MONTH SELECTOR
+      ═══════════════════════════════════════════════════════════════ */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 flex items-center gap-2">
+              ⚽ متابعة سداد الاشتراكات الشهرية
+            </h1>
+            <p className="text-slate-500 text-sm font-semibold mt-1">
+              الشهر بشهره — سدد لكل فرع أو ارجع التسديد بنقرة واحدة
+            </p>
+          </div>
+          <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 border border-slate-200 rounded-xl shadow-2xs">
+            <Calendar size={18} className="text-emerald-600" />
+            <span className="text-slate-500 font-bold text-sm">الشهر:</span>
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="border-none bg-transparent font-tabular font-bold text-slate-800 focus:outline-none cursor-pointer focus:ring-0 text-sm font-[Cairo]"
+              className="border-none bg-transparent font-tabular font-extrabold text-slate-800 focus:outline-none cursor-pointer text-sm"
             />
           </div>
-
-          <button
-            onClick={handleHeaderBranchSettleClick}
-            disabled={isBulkBranchSubmitting}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer font-arabic disabled:opacity-50 hover:scale-105 active:scale-95"
-            title="تسديد شهر لفرع معين بنقرة واحدة"
-          >
-            <Building2 size={16} />
-            <span>تسديد شهر {branchFilter ? `(${currentBranchTitle})` : 'فرع محدد'} بالكامل ✅</span>
-          </button>
         </div>
       </div>
 
-      {/* KPI Cards Row (Only Total Collected & Paid Counts) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 font-[Cairo]">
-        {/* Total Collected */}
+      {/* ═══════════════════════════════════════════════════════════════
+          PER-BRANCH CONTROL CARDS  (تسديد كامل + ارجاع لكل فرع)
+      ═══════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
+        {branches.map((branch) => {
+          const stats = getBranchStats(branch.id);
+          const closingLabel = getClosingDayLabel(branch.name, branch.closing_day);
+          const isAllPaid = stats.unpaid === 0 && stats.total > 0;
+          const isSettling = settlingBranchId === branch.id;
+          const isRollingBack = rollingBackBranchId === branch.id;
+
+          return (
+            <div
+              key={branch.id}
+              className={`rounded-2xl border-2 p-5 md:p-6 shadow-sm transition-all ${
+                isAllPaid
+                  ? 'bg-emerald-50 border-emerald-300'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              {/* Branch Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold shadow-sm ${
+                    isAllPaid ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    <Building2 size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base md:text-lg text-slate-900">{branch.name}</h3>
+                    <p className="text-[11px] text-slate-400 font-bold">التقفيل: {closingLabel}</p>
+                  </div>
+                </div>
+                {isAllPaid && (
+                  <span className="text-emerald-600 text-xl">✅</span>
+                )}
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-2 mb-5">
+                <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
+                  <div className="text-lg md:text-xl font-extrabold text-slate-800 font-tabular">{stats.total}</div>
+                  <div className="text-[10px] font-bold text-slate-500">إجمالي</div>
+                </div>
+                <div className={`rounded-xl p-3 text-center border ${isAllPaid ? 'bg-emerald-100 border-emerald-200' : 'bg-emerald-50 border-emerald-100'}`}>
+                  <div className="text-lg md:text-xl font-extrabold text-emerald-700 font-tabular">{stats.paid}</div>
+                  <div className="text-[10px] font-bold text-emerald-600">مسدد ✅</div>
+                </div>
+                <div className={`rounded-xl p-3 text-center border ${stats.unpaid > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <div className={`text-lg md:text-xl font-extrabold font-tabular ${stats.unpaid > 0 ? 'text-rose-700' : 'text-slate-400'}`}>{stats.unpaid}</div>
+                  <div className={`text-[10px] font-bold ${stats.unpaid > 0 ? 'text-rose-600' : 'text-slate-400'}`}>غير مسدد</div>
+                </div>
+              </div>
+
+              {/* Collected Amount */}
+              <div className="bg-slate-50 rounded-xl p-3 mb-5 border border-slate-100 text-center">
+                <div className="text-[11px] font-bold text-slate-500 mb-0.5">إجمالي المحصل لشهر {formatMonth(selectedMonth)}</div>
+                <div className="text-xl md:text-2xl font-extrabold text-emerald-800 font-tabular">
+                  {formatMoney(stats.collected)} <span className="text-xs font-bold text-slate-500">ج.م</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-2.5">
+                {/* ✅ Settle All */}
+                <button
+                  onClick={() => handleSettleBranch(branch.id, branch.name)}
+                  disabled={isSettling || isRollingBack || isAllPaid}
+                  className={`w-full py-3 md:py-3.5 rounded-xl font-extrabold text-sm md:text-base transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:cursor-not-allowed ${
+                    isAllPaid
+                      ? 'bg-emerald-200 text-emerald-700 border border-emerald-300'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-lg active:scale-[0.98]'
+                  } disabled:opacity-60`}
+                >
+                  {isSettling ? (
+                    <>⏳ جاري التسديد...</>
+                  ) : isAllPaid ? (
+                    <>✅ تم تسديد الشهر بالكامل</>
+                  ) : (
+                    <>
+                      <Check size={20} />
+                      تسديد شهر {formatMonth(selectedMonth)} بالكامل ({stats.unpaid} لاعب)
+                    </>
+                  )}
+                </button>
+
+                {/* 🔄 Rollback */}
+                <button
+                  onClick={() => handleRollbackBranch(branch.id, branch.name)}
+                  disabled={isRollingBack || isSettling || stats.paid === 0}
+                  className="w-full py-2.5 md:py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border-2 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:border-rose-300 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isRollingBack ? (
+                    <>⏳ جاري الإرجاع...</>
+                  ) : (
+                    <>
+                      <RotateCcw size={18} />
+                      إرجاع تسديد شهر {formatMonth(selectedMonth)} ({stats.paid} عملية)
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          GLOBAL KPI SUMMARY
+      ═══════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-center justify-between shadow-2xs">
           <div>
-            <div className="text-xs text-emerald-700 font-bold mb-1">إجمالي المحصل لـ ({formatMonth(selectedMonth)})</div>
-            <div className="text-3xl font-extrabold text-emerald-900 font-tabular">
+            <div className="text-xs text-emerald-700 font-bold mb-1">💰 إجمالي المحصل — {formatMonth(selectedMonth)} ({currentBranchTitle})</div>
+            <div className="text-2xl md:text-3xl font-extrabold text-emerald-900 font-tabular">
               {formatMoney(totalCollectedThisMonth)} <span className="text-sm font-bold">ج.م</span>
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-2xl font-bold shadow-md">
-            💰
-          </div>
         </div>
-
-        {/* Paid Players Count */}
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex items-center justify-between shadow-2xs">
           <div>
-            <div className="text-xs text-blue-700 font-bold mb-1">اللاعبين المسددين لـ ({formatMonth(selectedMonth)})</div>
-            <div className="text-3xl font-extrabold text-blue-900 font-tabular">
-              {paidPlayersCount} <span className="text-sm font-bold">لاعب ✅</span>
+            <div className="text-xs text-blue-700 font-bold mb-1">✅ المسددين — {formatMonth(selectedMonth)} ({currentBranchTitle})</div>
+            <div className="text-2xl md:text-3xl font-extrabold text-blue-900 font-tabular">
+              {paidPlayersCount} <span className="text-sm font-bold">لاعب</span>
             </div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl font-bold shadow-md">
-            <CheckCircle2 size={24} />
           </div>
         </div>
-
-        {/* Unpaid Players Count */}
         <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 flex items-center justify-between shadow-2xs">
           <div>
-            <div className="text-xs text-rose-700 font-bold mb-1">اللاعبين غير المسددين بعد</div>
-            <div className="text-3xl font-extrabold text-rose-900 font-tabular">
-              {unpaidPlayersCount} <span className="text-sm font-bold">لاعب ⏳</span>
+            <div className="text-xs text-rose-700 font-bold mb-1">⏳ غير المسددين — {formatMonth(selectedMonth)} ({currentBranchTitle})</div>
+            <div className="text-2xl md:text-3xl font-extrabold text-rose-900 font-tabular">
+              {unpaidPlayersCount} <span className="text-sm font-bold">لاعب</span>
             </div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center text-2xl font-bold shadow-md">
-            <XCircle size={24} />
           </div>
         </div>
       </div>
 
-      {/* Filter Tabs & Search Bar */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 font-[Cairo]">
-        
-        {/* Status Filter Tabs */}
+      {/* ═══════════════════════════════════════════════════════════════
+          FILTER TABS + SEARCH
+      ═══════════════════════════════════════════════════════════════ */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-full md:w-auto">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg font-bold text-sm transition-all cursor-pointer ${
               statusFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            الكل ({playersList.length})
+            الكل ({viewPlayers.length})
           </button>
           <button
             onClick={() => setStatusFilter('paid')}
-            className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg font-bold text-sm transition-all cursor-pointer ${
               statusFilter === 'paid' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-emerald-700 hover:bg-emerald-50'
             }`}
           >
-            🟢 المسددين فقط ({paidPlayersCount})
+            ✅ مسدد ({paidPlayersCount})
           </button>
           <button
             onClick={() => setStatusFilter('unpaid')}
-            className={`flex-1 md:flex-none px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+            className={`flex-1 md:flex-none px-4 py-2.5 rounded-lg font-bold text-sm transition-all cursor-pointer ${
               statusFilter === 'unpaid' ? 'bg-rose-600 text-white shadow-2xs' : 'text-rose-700 hover:bg-rose-50'
             }`}
           >
-            🔴 غير المسددين ({unpaidPlayersCount})
+            ⏳ غير مسدد ({unpaidPlayersCount})
           </button>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative w-full md:w-72">
+        <div className="relative w-full md:w-80">
           <input
             type="text"
-            placeholder="بحث باسم اللاعب أو الكود..."
+            placeholder="🔍 بحث باسم اللاعب أو الكود..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full py-2 px-4 pr-9 border border-slate-200 rounded-xl font-[Cairo] text-sm bg-slate-50 focus:border-emerald-500 focus:bg-white focus:outline-none transition-colors"
+            className="w-full py-2.5 px-4 pr-4 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:border-emerald-500 focus:bg-white focus:outline-none transition-colors"
           />
-          <Search size={16} className="absolute left-3 top-3 text-slate-400" />
         </div>
       </div>
 
-      {/* Main Players Checkmark Table */}
+      {/* ═══════════════════════════════════════════════════════════════
+          PLAYERS TABLE
+      ═══════════════════════════════════════════════════════════════ */}
       {filteredData.length === 0 ? (
         <EmptyState icon="✅" title="لا توجد نتائج" subtitle="لم يتم العثور على لاعبين يطابقون فلتر البحث" />
       ) : (
         <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200">
           <div className="overflow-x-auto">
-            <table className="w-full text-right font-[Cairo]">
+            <table className="w-full text-right">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-5 py-3.5 text-slate-600 font-bold text-xs">اللاعب</th>
-                  <th className="px-5 py-3.5 text-slate-600 font-bold text-xs">الكود</th>
-                  {!branchFilter && <th className="px-5 py-3.5 text-slate-600 font-bold text-xs">الفرع</th>}
-                  <th className="px-5 py-3.5 text-slate-600 font-bold text-xs">المجموعة</th>
-                  <th className="px-5 py-3.5 text-slate-600 font-bold text-xs">قيمة الاشتراك</th>
-                  <th className="px-5 py-3.5 text-slate-600 font-bold text-xs text-center">حالة سداد شهر ({formatMonth(selectedMonth)})</th>
-                  <th className="px-5 py-3.5 text-slate-600 font-bold text-xs text-center">الإجراء المباشر</th>
+                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm">اللاعب</th>
+                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm hidden sm:table-cell">الكود</th>
+                  {!branchFilter && <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm">الفرع</th>}
+                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm hidden md:table-cell">المجموعة</th>
+                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm">الاشتراك</th>
+                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm text-center">الحالة</th>
+                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm text-center">إجراء</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredData.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="px-5 py-4 font-extrabold text-slate-900 text-sm">
+                    <td className="px-4 md:px-5 py-3.5 md:py-4 font-extrabold text-slate-900 text-sm">
                       {p.full_name}
                     </td>
-                    <td className="px-5 py-4 font-mono text-xs text-slate-500 font-bold">
+                    <td className="px-4 md:px-5 py-3.5 md:py-4 font-mono text-xs text-slate-500 font-bold hidden sm:table-cell">
                       {p.player_code}
                     </td>
                     {!branchFilter && (
-                      <td className="px-5 py-4">
+                      <td className="px-4 md:px-5 py-3.5 md:py-4">
                         <BranchBadge branchId={p.branch_id} branchName={p.branch_name} />
                       </td>
                     )}
-                    <td className="px-5 py-4 text-xs font-semibold text-slate-600">
+                    <td className="px-4 md:px-5 py-3.5 md:py-4 text-xs font-semibold text-slate-600 hidden md:table-cell">
                       {p.group_name}
                     </td>
-                    <td className="px-5 py-4 font-extrabold text-slate-900 text-sm font-tabular">
-                      {formatMoney(p.fee_amount)} <span className="text-[10px] text-slate-400 font-bold">ج.م/شهر</span>
+                    <td className="px-4 md:px-5 py-3.5 md:py-4 font-extrabold text-slate-900 text-sm font-tabular">
+                      {formatMoney(p.fee_amount)}
                     </td>
-                    <td className="px-5 py-4 text-center">
+                    <td className="px-4 md:px-5 py-3.5 md:py-4 text-center">
                       {p.is_paid ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-extrabold border border-emerald-200 shadow-2xs">
-                          <CheckCircle2 size={15} className="text-emerald-600" /> تم السداد ✅
+                        <span className="inline-flex items-center gap-1 px-2.5 md:px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[11px] md:text-xs font-extrabold border border-emerald-200">
+                          <CheckCircle2 size={14} className="text-emerald-600" /> مسدد ✅
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-extrabold border border-rose-200">
-                          <XCircle size={15} className="text-rose-600" /> غير مسدد ⏳
+                        <span className="inline-flex items-center gap-1 px-2.5 md:px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-[11px] md:text-xs font-extrabold border border-rose-200">
+                          <XCircle size={14} className="text-rose-600" /> غير مسدد
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="px-4 md:px-5 py-3.5 md:py-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
                         {!p.is_paid ? (
                           <button
                             onClick={() => openPayModal(p)}
-                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95"
-                            title="تسديد الاشتراك لهذا الشهر بنقرة واحدة"
+                            className="px-3 md:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] md:text-xs font-extrabold transition-all shadow-sm flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95"
                           >
-                            <Check size={16} /> تسديد هذا الشهر ✅
+                            <Check size={14} /> تسديد
                           </button>
                         ) : (
-                          <span className="text-xs text-slate-400 font-bold font-tabular">
-                            مسدد بتاريخ ({formatDate(p.payment_date || '')})
+                          <span className="text-[10px] md:text-xs text-slate-400 font-bold font-tabular">
+                            {formatDate(p.payment_date || '')}
                           </span>
                         )}
-
                         <button
                           onClick={() => handleFreezePlayer(p)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="تجميد وتوقيف الاشتراك نهائياً"
+                          className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="تجميد"
                         >
-                          <PauseCircle size={17} />
+                          <PauseCircle size={16} />
                         </button>
                       </div>
                     </td>
@@ -456,95 +559,48 @@ export default function DebtsPage() {
         </div>
       )}
 
-      {/* 1-Click Pay Modal */}
+      {/* ═══════════════════════════════════════════════════════════════
+          PAY MODAL
+      ═══════════════════════════════════════════════════════════════ */}
       <Modal
         isOpen={!!playerToPay}
         onClose={() => setPlayerToPay(null)}
-        title="🟢 تسديد اشتراك الشهر بنقرة واحدة"
+        title="🟢 تسديد اشتراك الشهر"
         footer={
-          <div className="flex gap-2 justify-end font-[Cairo]">
+          <div className="flex gap-2 justify-end">
             <button
               onClick={handleConfirmPay}
               disabled={isSubmittingPay}
               className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-extrabold text-sm transition-all shadow-sm cursor-pointer disabled:opacity-50"
             >
-              {isSubmittingPay ? 'جاري التسجيل...' : 'تأكيد التسديد ✅'}
+              {isSubmittingPay ? '⏳ جاري...' : '✅ تأكيد التسديد'}
             </button>
-            <button
-              onClick={() => setPlayerToPay(null)}
-              className="px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 cursor-pointer"
-            >
+            <button onClick={() => setPlayerToPay(null)} className="px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 cursor-pointer">
               إلغاء
             </button>
           </div>
         }
       >
-        <div className="space-y-4 font-[Cairo]">
-          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-emerald-950 text-xs font-bold space-y-1">
-            <div>اسم اللاعب: <span className="font-extrabold text-sm text-emerald-900">{playerToPay?.full_name}</span></div>
-            <div>الشهر المراد سداده: <span className="font-extrabold text-sm text-emerald-700 font-tabular">{formatMonth(selectedMonth)}</span></div>
+        <div className="space-y-4">
+          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-emerald-950 text-sm font-bold space-y-1">
+            <div>اللاعب: <span className="font-extrabold text-emerald-900">{playerToPay?.full_name}</span></div>
+            <div>الشهر: <span className="font-extrabold text-emerald-700 font-tabular">{formatMonth(selectedMonth)}</span></div>
           </div>
-
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-1">مبلغ الاشتراك (ج.م) *</label>
-            <input
-              type="number"
-              value={payAmount}
-              onChange={(e) => setPayAmount(e.target.value)}
-              className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-xl text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none"
-              dir="ltr"
-            />
+            <label className="block text-sm font-bold text-slate-700 mb-1">المبلغ (ج.م)</label>
+            <input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
+              className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-xl text-sm focus:border-emerald-500 focus:outline-none" dir="ltr" />
           </div>
-
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-1">طريقة الدفع *</label>
-            <select
-              value={payMethod}
-              onChange={(e: any) => setPayMethod(e.target.value)}
-              className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-xl text-sm font-[Cairo] focus:border-emerald-500 focus:outline-none cursor-pointer"
-            >
+            <label className="block text-sm font-bold text-slate-700 mb-1">طريقة الدفع</label>
+            <select value={payMethod} onChange={(e: any) => setPayMethod(e.target.value)}
+              className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-xl text-sm focus:border-emerald-500 focus:outline-none cursor-pointer">
               <option value="cash">💵 نقدي (كاش)</option>
-              <option value="transfer">🏦 تحويل بنكي / فودافون كاش</option>
+              <option value="transfer">🏦 تحويل بنكي</option>
             </select>
           </div>
         </div>
       </Modal>
-
-      {/* Quick Branch Settle Modal */}
-      <Modal
-        isOpen={showBranchSettleModal}
-        onClose={() => setShowBranchSettleModal(false)}
-        title="🏢 تسديد شهر مالي لفرع محدد بنقرة واحدة"
-      >
-        <div className="space-y-4 font-[Cairo]">
-          <p className="text-slate-600 text-xs font-semibold">
-            اختر الفرع المراد تسديد جميع لاعبيه النشطين لشهر <strong className="text-emerald-700 font-tabular">{formatMonth(selectedMonth)}</strong> دفعة واحدة:
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {branches.map((b) => {
-              const unpaidCountInB = playersList.filter((p) => p.branch_id === b.id && !p.is_paid).length;
-              return (
-                <button
-                  key={b.id}
-                  onClick={() => settleSpecificBranch(b.id, b.name)}
-                  disabled={isBulkBranchSubmitting}
-                  className="p-4 bg-slate-50 hover:bg-emerald-50 border-2 border-slate-200 hover:border-emerald-500 rounded-2xl text-right transition-all cursor-pointer group flex flex-col justify-between gap-2"
-                >
-                  <div className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-800 flex items-center justify-between">
-                    <span>{b.name}</span>
-                    <Building2 size={18} className="text-emerald-600" />
-                  </div>
-                  <div className="text-xs text-slate-500 font-bold">
-                    غير المسددين: <span className="text-rose-600 font-tabular">{unpaidCountInB} لاعب</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </Modal>
-
     </div>
   );
 }
