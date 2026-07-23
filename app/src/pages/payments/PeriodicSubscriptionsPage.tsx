@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
 import Modal from '../../components/ui/Modal';
-import { formatMoney, buildWhatsAppLink, debtReminderMessage, renewalReminderMessage, formatDate } from '../../lib/utils';
+import { formatMoney, formatMonth, buildWhatsAppLink, debtReminderMessage, renewalReminderMessage, formatDate } from '../../lib/utils';
 import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
@@ -443,6 +443,42 @@ export default function PeriodicSubscriptionsPage() {
     XLSX.writeFile(wb, `league_players_${new Date().toISOString().split('T')[0]}.xlsx`);
   }
 
+  const handleSettleAllLeaguePlayers = async () => {
+    const unpaidLeague = filteredData.filter(d => Number(d.debt_periodic || 0) > 0);
+    if (unpaidLeague.length === 0) {
+      toast('info', 'جميع لاعبي الدوري مسددين بالفعل لهذا الشهر ✅');
+      return;
+    }
+
+    if (!window.confirm(`هل أنت متأكد من تسديد اشتراك الدوري لجميع اللاعبين غير المسددين البالغ عددهم ${unpaidLeague.length} لاعب بنقرة واحدة؟`)) return;
+
+    setLoading(true);
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const currentMonth = todayStr.substring(0, 7);
+
+      const paymentRows = unpaidLeague.map(p => ({
+        player_id: p.player_id,
+        branch_id: p.branch_id,
+        amount: Number(p.debt_periodic || p.fee_amount_periodic || 1200),
+        payment_date: todayStr,
+        method: 'cash',
+        period_covered: currentMonth,
+        notes: `تسديد اشتراك الدوري آلياً لشهر ${formatMonth(currentMonth)}`
+      }));
+
+      const { error } = await supabase.from('payments').insert(paymentRows);
+      if (error) throw error;
+
+      toast('success', `تم تسديد اشتراك الدوري لـ ${paymentRows.length} لاعب بنجاح ✅`);
+      loadData();
+    } catch (err: any) {
+      toast('error', 'حدث خطأ أثناء تسديد لاعبي الدوري: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (initialLoading) return <PageLoading />;
 
   return (
@@ -457,6 +493,13 @@ export default function PeriodicSubscriptionsPage() {
           <p className="text-slate-500 text-sm mt-1 font-arabic">إدارة لاعبي الدوري والفرق وتصدير البيانات</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button 
+            onClick={handleSettleAllLeaguePlayers} 
+            className="py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-sm transition-all cursor-pointer shadow-md flex items-center gap-1.5 font-arabic hover:-translate-y-0.5 active:translate-y-0"
+            title="تسديد جميع لاعبي الدوري غير المسددين بنقرة واحدة"
+          >
+            🏆 تسديد جميع لاعبي الدوري ({debtorsCount}) بنقرة واحدة ✅
+          </button>
           <button 
             onClick={openAddPlayerForm} 
             className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all cursor-pointer shadow-md flex items-center gap-1.5 font-arabic hover:-translate-y-0.5 active:translate-y-0"
@@ -555,33 +598,38 @@ export default function PeriodicSubscriptionsPage() {
                   {!branchFilter && <th>الفرع</th>}
                   <th>المجموعة</th>
                   <th>قيمة الاشتراك الدوري</th>
-                  <th>عدد الأرباع</th>
-                  <th>المتوقع (دوري)</th>
-                  <th>مديونية الدوري</th>
-                  <th>موعد التجديد</th>
-                  <th>إجراء</th>
+                  <th>حالة سداد يوليو 2026</th>
+                  <th>الإجراء</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredData.map(d => (
-                  <tr key={d.player_id}>
-                    <td className="font-semibold">
-                      <Link to={`/players/${d.player_id}`} className="text-slate-900 hover:text-emerald-700 transition-colors no-underline">
-                        {d.player_name}
-                      </Link>
-                    </td>
-                    <td className="font-mono text-xs text-slate-500">{d.player_code}</td>
-                    <td className="font-semibold text-slate-600">{d.date_of_birth ? d.date_of_birth.substring(0, 4) : '—'}</td>
-                    {!branchFilter && <td><BranchBadge branchId={d.branch_id} branchName={d.branch_name} /></td>}
-                    <td className="text-slate-600 text-sm">{d.group_name || '—'}</td>
-                    <td className="tabular-data font-bold text-emerald-700">{formatMoney(d.fee_amount_periodic)}</td>
-                    <td className="tabular-data text-center">{Math.ceil(d.months_enrolled / 3)}</td>
-                    <td className="tabular-data">{formatMoney(d.total_expected_periodic)}</td>
-                    <td className={`tabular-data font-bold ${Number(d.debt_periodic) > 0 ? 'text-red-600' : 'text-slate-400'}`}>
-                      {Number(d.debt_periodic) > 0 ? formatMoney(d.debt_periodic) : '0'}
-                    </td>
-                    <td className="text-sm font-bold text-slate-800">{formatDate(d.next_payment_date)}</td>
-                    <td>
+                {filteredData.map(d => {
+                  const isPaid = Number(d.debt_periodic || 0) <= 0;
+                  return (
+                    <tr key={d.player_id}>
+                      <td className="font-semibold">
+                        <Link to={`/players/${d.player_id}`} className="text-slate-900 hover:text-emerald-700 transition-colors no-underline">
+                          {d.player_name}
+                        </Link>
+                      </td>
+                      <td className="font-mono text-xs text-slate-500">{d.player_code}</td>
+                      <td className="font-semibold text-slate-600">{d.date_of_birth ? d.date_of_birth.substring(0, 4) : '—'}</td>
+                      {!branchFilter && <td><BranchBadge branchId={d.branch_id} branchName={d.branch_name} /></td>}
+                      <td className="text-slate-600 text-sm">{d.group_name || '—'}</td>
+                      <td className="tabular-data font-bold text-emerald-700">{formatMoney(d.fee_amount_periodic)}</td>
+                      <td className="tabular-data text-center">{Math.ceil(d.months_enrolled / 3)}</td>
+                      <td className="text-center">
+                        {isPaid ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-extrabold border border-emerald-200">
+                            🟢 تم سداد يوليو ✅
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-extrabold border border-rose-200">
+                            🔴 لم يسدد بعد ⏳
+                          </span>
+                        )}
+                      </td>
+                      <td>
                       <div className="flex gap-2 items-center flex-wrap">
                         <button
                           onClick={() => handleEditPlayer(d.player_id)}
@@ -630,7 +678,8 @@ export default function PeriodicSubscriptionsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           </div>
