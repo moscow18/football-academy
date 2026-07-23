@@ -165,8 +165,6 @@ export default function PeriodicSubscriptionsPage() {
   });
 
   // Calculate stats — LEAGUE ONLY (no monthly fees included)
-  const totalExpectedPeriodic = filteredData.reduce((s, d) => s + Number(d.total_expected_periodic || 0), 0);
-  const totalDebtPeriodic = filteredData.reduce((s, d) => s + Number(d.debt_periodic || 0), 0);
   const debtorsCount = filteredData.filter(d => Number(d.debt_periodic || 0) > 0).length;
 
   const filteredPlayersForGroup = availablePlayers.filter(p => 
@@ -504,28 +502,26 @@ export default function PeriodicSubscriptionsPage() {
 
       {/* Summary — LEAGUE ONLY */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5 shadow-sm flex flex-col gap-5 animate-fade-in">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
           <div className="bg-emerald-50 px-4 py-3 rounded-lg border border-emerald-100">
             <div className="text-xs text-emerald-700 font-bold mb-1 font-arabic">عدد لاعبي الدوري</div>
             <div className="text-xl font-extrabold text-emerald-700 tabular-nums">{filteredData.length} <span className="text-xs font-medium font-arabic">لاعب</span></div>
           </div>
-          <div className="bg-amber-50 px-4 py-3 rounded-lg border border-amber-100">
-            <div className="text-xs text-amber-700 font-bold mb-1 font-arabic">إجمالي المتوقع (دوري فقط)</div>
-            <div className="text-xl font-extrabold text-amber-700 tabular-nums">{formatMoney(totalExpectedPeriodic)} <span className="text-xs font-medium font-arabic">ج.م</span></div>
-          </div>
-          <div className="bg-red-50 px-4 py-3 rounded-lg border border-red-100">
-            <div className="text-xs text-red-700 font-bold mb-1 font-arabic">مديونية الدوري</div>
-            <div className="text-xl font-extrabold text-red-600 tabular-nums">{formatMoney(totalDebtPeriodic)} <span className="text-xs font-medium font-arabic">ج.م</span></div>
-          </div>
           <div className="bg-blue-50 px-4 py-3 rounded-lg border border-blue-100">
-            <div className="text-xs text-blue-700 font-bold mb-1 font-arabic">لاعبين بمديونية دوري</div>
-            <div className="text-xl font-extrabold text-blue-700 tabular-nums">{debtorsCount} <span className="text-xs font-medium font-arabic">لاعب</span></div>
+            <div className="text-xs text-blue-700 font-bold mb-1 font-arabic">إجمالي المحصل لاعبي الدوري</div>
+            <div className="text-xl font-extrabold text-blue-800 tabular-nums">
+              {formatMoney(filteredData.reduce((s, d) => s + Number(d.total_paid || 0), 0))} <span className="text-xs font-medium font-arabic">ج.م</span>
+            </div>
+          </div>
+          <div className="bg-amber-50 px-4 py-3 rounded-lg border border-amber-100">
+            <div className="text-xs text-amber-700 font-bold mb-1 font-arabic">اللاعبين غير المسددين بعد</div>
+            <div className="text-xl font-extrabold text-amber-700 tabular-nums">{debtorsCount} <span className="text-xs font-medium font-arabic">لاعب ⏳</span></div>
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row gap-5 justify-between items-center pt-3 border-t border-slate-100">
           <div className="flex flex-col gap-1 w-full md:w-auto font-arabic">
-            <div className="text-sm font-semibold text-slate-700">اللاعبين بمديونية: <span className="font-bold text-red-600">{debtorsCount}</span></div>
+            <div className="text-sm font-semibold text-slate-700">عدد غير المسددين: <span className="font-bold text-amber-600">{debtorsCount} لاعب ⏳</span></div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
