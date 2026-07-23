@@ -123,7 +123,9 @@ export default function OwnerDashboard() {
       });
 
       const totalKitsSales = (monthKits || []).reduce((sum: number, k: any) => sum + Number(k.total_amount || 0), 0);
-      const netProfit = (totalCollectedMonthly + totalCollectedPeriodic + totalKitsSales) - totalExpensesAndSalaries;
+      // ⚡ NET PROFIT = Monthly Subscriptions + Kit Sales - Expenses/Salaries
+      // ❌ League (periodic) payments are EXCLUDED because they pay quarterly (every 3 months), not monthly
+      const netProfit = (totalCollectedMonthly + totalKitsSales) - totalExpensesAndSalaries;
 
       let recent = recentPlayersData || [];
       if (branchFilter) {
@@ -235,7 +237,7 @@ export default function OwnerDashboard() {
           </div>
           <div className="mt-3 flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 font-arabic">
-              {profile?.role === 'owner' ? 'بعد خصم إجمالي المصروفات' : 'بعد خصم مصروفات ورواتب الفرع'}
+              اشتراكات شهرية + أطقم − مصروفات (بدون الدوري)
             </span>
             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1 font-arabic">
               🔍 تفاصيل المعادلة
@@ -277,7 +279,7 @@ export default function OwnerDashboard() {
           className="bg-white border border-slate-200 border-r-4 border-r-blue-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5"
         >
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide group-hover:text-blue-700 transition-colors">اشتراكات الدوري</span>
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide group-hover:text-blue-700 transition-colors">اشتراكات الدوري (ربع سنوي)</span>
             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
               <TrendingUp size={20} strokeWidth={2} />
             </div>
@@ -289,7 +291,7 @@ export default function OwnerDashboard() {
             <span className="text-sm font-bold text-blue-700 font-arabic">ج.م</span>
           </div>
           <div className="mt-3 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي اشتراكات الدوري فقط</span>
+            <span className="text-xs font-bold text-orange-500 font-arabic">⚠️ لا يُحسب في صافي الربح الشهري (كل 3 شهور)</span>
             <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 flex items-center gap-1 font-arabic">
               🔍 تفاصيل الدوري
             </span>
