@@ -8,6 +8,7 @@ import { PageLoading } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import ProfitExplanationModal from '../../components/financial/ProfitExplanationModal';
+import KPIAnalyticsModal, { type KPIType } from '../../components/financial/KPIAnalyticsModal';
 import type { NetProfit } from '../../lib/types';
 
 interface DashboardStats {
@@ -27,6 +28,7 @@ export default function OwnerDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [profitData, setProfitData] = useState<NetProfit[]>([]);
   const [showProfitModal, setShowProfitModal] = useState(false);
+  const [activeKpiModal, setActiveKpiModal] = useState<KPIType | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => 
@@ -170,10 +172,13 @@ export default function OwnerDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* Active Players */}
-        <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => setActiveKpiModal('players')}
+          className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5"
+        >
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">اللاعبين النشطين</span>
-            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide group-hover:text-emerald-700 transition-colors">اللاعبين النشطين</span>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
               <Users size={20} strokeWidth={2} />
             </div>
           </div>
@@ -182,8 +187,11 @@ export default function OwnerDashboard() {
               {stats.activePlayers.toLocaleString('en-US')}
             </h3>
           </div>
-          <div className="mt-3 flex items-center gap-1.5">
+          <div className="mt-3 flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي المشتركين حالياً</span>
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1 font-arabic">
+              🔍 تفاصيل اللاعبين
+            </span>
           </div>
         </div>
 
@@ -215,10 +223,13 @@ export default function OwnerDashboard() {
         </div>
 
         {/* Monthly Subscriptions */}
-        <div className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => setActiveKpiModal('monthly_sub')}
+          className="bg-white border border-slate-200 border-r-4 border-r-emerald-700 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5"
+        >
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">الاشتراكات الشهرية</span>
-            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide group-hover:text-emerald-700 transition-colors">الاشتراكات الشهرية</span>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
               <TrendingUp size={20} strokeWidth={2} />
             </div>
           </div>
@@ -228,8 +239,11 @@ export default function OwnerDashboard() {
             </h3>
             <span className="text-sm font-bold text-emerald-700 font-arabic">ج.م</span>
           </div>
-          <div className="mt-3 flex items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-400 font-arabic">اشتراكات شهرية فقط (بدون الدوري)</span>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 font-arabic">اشتراكات شهرية فقط</span>
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1 font-arabic">
+              🔍 التفاصيل
+            </span>
           </div>
         </div>
       </div>
@@ -237,10 +251,13 @@ export default function OwnerDashboard() {
       {/* KPI Cards Row 2 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Periodic (League) Subscriptions */}
-        <div className="bg-white border border-slate-200 border-r-4 border-r-blue-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => setActiveKpiModal('league_sub')}
+          className="bg-white border border-slate-200 border-r-4 border-r-blue-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5"
+        >
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">اشتراكات الدوري</span>
-            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide group-hover:text-blue-700 transition-colors">اشتراكات الدوري</span>
+            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
               <TrendingUp size={20} strokeWidth={2} />
             </div>
           </div>
@@ -250,16 +267,22 @@ export default function OwnerDashboard() {
             </h3>
             <span className="text-sm font-bold text-blue-700 font-arabic">ج.م</span>
           </div>
-          <div className="mt-3 flex items-center gap-1.5">
+          <div className="mt-3 flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي اشتراكات الدوري فقط</span>
+            <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 flex items-center gap-1 font-arabic">
+              🔍 تفاصيل الدوري
+            </span>
           </div>
         </div>
 
         {/* Expenses and Salaries */}
-        <div className="bg-white border border-slate-200 border-r-4 border-r-rose-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div 
+          onClick={() => setActiveKpiModal('expenses_salaries')}
+          className="bg-white border border-slate-200 border-r-4 border-r-rose-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5"
+        >
           <div className="flex justify-between items-start mb-4">
-            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide">المرتبات والمصروفات</span>
-            <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide group-hover:text-rose-700 transition-colors">المرتبات والمصروفات</span>
+            <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition-colors">
               <TrendingDown size={20} strokeWidth={2} />
             </div>
           </div>
@@ -269,8 +292,11 @@ export default function OwnerDashboard() {
             </h3>
             <span className="text-sm font-bold text-rose-700 font-arabic">ج.م</span>
           </div>
-          <div className="mt-3 flex items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي المصروفات والرواتب للشهر</span>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي المصروفات والرواتب</span>
+            <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 flex items-center gap-1 font-arabic">
+              🔍 تفاصيل الخصومات
+            </span>
           </div>
         </div>
       </div>
@@ -407,6 +433,23 @@ export default function OwnerDashboard() {
         month={selectedMonth}
         profitData={profitData}
         branchName={selectedBranch?.name || 'جميع الفروع'}
+      />
+
+      {/* Generic KPI Analytics Modal */}
+      <KPIAnalyticsModal
+        isOpen={!!activeKpiModal}
+        onClose={() => setActiveKpiModal(null)}
+        kpiType={activeKpiModal}
+        month={selectedMonth}
+        branchName={selectedBranch?.name || 'جميع الفروع'}
+        data={{
+          activePlayersCount: stats.activePlayers,
+          monthlyRevenue: stats.totalCollectedMonthly,
+          leagueRevenue: stats.totalCollectedPeriodic,
+          totalExpenses: profitData.reduce((s, r) => s + Number(r.total_expenses || 0), 0),
+          totalSalaries: profitData.reduce((s, r) => s + Number(r.salaries_paid || 0), 0),
+          recentPlayers: stats.recentPlayers,
+        }}
       />
     </div>
   );
