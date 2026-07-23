@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
-import { formatMoney, formatMonth, getActiveFinancialMonth, formatDate } from '../../lib/utils';
+import { formatMoney, formatMonth, getActiveFinancialMonth, getFinancialMonthForDate, formatDate } from '../../lib/utils';
 import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
@@ -99,6 +99,19 @@ export default function DebtsPage() {
         }
 
         const branchName = p.branches?.name || '';
+        const closingDay = p.branches?.closing_day || CLOSING_DAYS[branchName.trim()] || 30;
+
+        const regDateStr = p.registration_date || (p.created_at ? p.created_at.split('T')[0] : '2026-07-01');
+        const playerFinancialMonth = getFinancialMonthForDate(regDateStr, closingDay);
+
+        // Player is DUE in selectedMonth ONLY if his playerFinancialMonth <= selectedMonth
+        // E.g. registered 21 July (day 21 > 20) -> playerFinancialMonth = '2026-08'
+        // Under selectedMonth = '2026-07' -> 2026-08 > 2026-07 -> NOT DUE YET IN JULY!
+        // Under selectedMonth = '2026-08' -> 2026-08 <= 2026-08 -> DUE IN AUGUST!
+        if (playerFinancialMonth > selectedMonth) {
+          return;
+        }
+
         const paymentInfo = paidPlayerMap.get(p.id);
 
         duePlayers.push({
@@ -115,7 +128,7 @@ export default function DebtsPage() {
           is_paid: !!paymentInfo,
           payment_date: paymentInfo?.payment_date,
           payment_id: paymentInfo?.payment_id,
-          registration_date: p.registration_date,
+          registration_date: regDateStr,
         });
       });
 

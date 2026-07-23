@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
-import { formatMoney, formatMonth, formatDate, buildWhatsAppLink } from '../../lib/utils';
+import { formatMoney, formatMonth, formatDate, getFinancialMonthForDate, buildWhatsAppLink } from '../../lib/utils';
 import { Search, Plus, Download, Edit2, Trash2, Users } from 'lucide-react';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
@@ -234,24 +234,9 @@ export default function PlayersPage() {
       const feeAmount = Number(payload.fee_amount || 0);
       if (feeAmount > 0 && insertedPlayer) {
         const regDateStr = payload.registration_date || new Date().toISOString().split('T')[0];
-        const regDate = new Date(regDateStr);
-        const regDay = regDate.getDate();
-        let targetYear = regDate.getFullYear();
-        let targetMonthNum = regDate.getMonth() + 1; // 1-indexed
-
         const targetBranch = branches.find(b => b.id === payload.branch_id);
         const closingDay = targetBranch?.closing_day || (targetBranch?.name?.includes('الثلاثي') ? 20 : 30);
-
-        // If registered after closing day -> shift to next month
-        if (regDay > closingDay) {
-          targetMonthNum += 1;
-          if (targetMonthNum > 12) {
-            targetMonthNum = 1;
-            targetYear += 1;
-          }
-        }
-
-        const periodCovered = `${targetYear}-${String(targetMonthNum).padStart(2, '0')}`;
+        const periodCovered = getFinancialMonthForDate(regDateStr, closingDay);
 
         await supabase.from('payments').insert({
           player_id: insertedPlayer.id,

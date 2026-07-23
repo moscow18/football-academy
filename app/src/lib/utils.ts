@@ -32,15 +32,17 @@ export function getCurrentMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-/** Calculate the active financial month of a branch based on its closing day */
-export function getActiveFinancialMonth(branch: { closing_day?: number } | null): string {
-  const now = new Date();
-  const day = now.getDate();
-  let year = now.getFullYear();
-  let month = now.getMonth(); // 0-indexed
+/** Calculate the financial month (YYYY-MM) for a specific date and branch closing day */
+export function getFinancialMonthForDate(dateStr: string | null | undefined, closingDay: number = 30): string {
+  if (!dateStr) return getCurrentMonth();
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return getCurrentMonth();
 
-  const closingDay = branch?.closing_day;
-  if (closingDay && closingDay > 0 && closingDay < 31 && day > closingDay) {
+  let year = d.getFullYear();
+  let month = d.getMonth(); // 0-indexed
+  const day = d.getDate();
+
+  if (closingDay > 0 && closingDay < 31 && day > closingDay) {
     month += 1;
     if (month > 11) {
       month = 0;
@@ -49,6 +51,12 @@ export function getActiveFinancialMonth(branch: { closing_day?: number } | null)
   }
 
   return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
+/** Calculate the active financial month of a branch based on its closing day */
+export function getActiveFinancialMonth(branch: { closing_day?: number } | null): string {
+  const closingDay = branch?.closing_day || 30;
+  return getFinancialMonthForDate(new Date().toISOString(), closingDay);
 }
 
 /** Format month string (YYYY-MM) to Arabic display */
