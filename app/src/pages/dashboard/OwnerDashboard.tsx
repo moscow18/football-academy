@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatMonth, getActiveFinancialMonth } from '../../lib/utils';
+import { formatMonth, getCurrentMonth } from '../../lib/utils';
 import { Users, TrendingUp, TrendingDown, Activity, PieChart } from 'lucide-react';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
@@ -32,14 +32,14 @@ export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => 
-    getActiveFinancialMonth(selectedBranch)
+    getCurrentMonth()
   );
 
   const [prevBranchId, setPrevBranchId] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedBranchId !== prevBranchId) {
-      setSelectedMonth(getActiveFinancialMonth(selectedBranch));
+      setSelectedMonth(getCurrentMonth());
       setPrevBranchId(selectedBranchId);
     }
   }, [selectedBranchId, selectedBranch, prevBranchId]);

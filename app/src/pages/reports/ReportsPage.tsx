@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
-import { formatMoney, formatMonth, getCurrentMonth, formatDate, getActiveFinancialMonth } from '../../lib/utils';
+import { formatMoney, formatMonth, getCurrentMonth, formatDate } from '../../lib/utils';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
 import { BranchBadge } from '../../components/ui/Badge';
 import type { NetProfit, AttendanceSummary, LedgerTransaction } from '../../lib/types';
@@ -35,7 +35,7 @@ export default function ReportsPage() {
   useEffect(() => {
     const branchId = selectedBranch?.id || null;
     if (branchId !== prevBranchId) {
-      setMonth(getActiveFinancialMonth(selectedBranch));
+      setMonth(getCurrentMonth());
       setPrevBranchId(branchId);
     }
   }, [selectedBranch, prevBranchId]);

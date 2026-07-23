@@ -47,7 +47,7 @@ export default function DebtsPage() {
   const [showBranchSettleModal, setShowBranchSettleModal] = useState(false);
 
   const loadMonthData = useCallback(async () => {
-    if (initialLoading) setLoading(true);
+    setLoading(true);
     try {
       const branchId = branchFilter || null;
 
@@ -108,7 +108,7 @@ export default function DebtsPage() {
       setLoading(false);
       setInitialLoading(false);
     }
-  }, [branchFilter, selectedMonth, initialLoading]);
+  }, [branchFilter, selectedMonth]);
 
   useEffect(() => {
     loadMonthData();
@@ -168,7 +168,8 @@ export default function DebtsPage() {
 
       toast('success', `تم تسجيل سداد شهر ${formatMonth(selectedMonth)} للاعب (${playerToPay.full_name}) بنجاح ✅`);
       setPlayerToPay(null);
-      loadMonthData();
+      // Wait a moment for DB to propagate, then reload
+      setTimeout(() => loadMonthData(), 500);
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء تسديد الاشتراك: ' + err.message);
     } finally {
@@ -208,7 +209,8 @@ export default function DebtsPage() {
 
       toast('success', `تم تسديد اشتراك شهر ${formatMonth(selectedMonth)} لجميع لاعبي فرع (${targetBranchName}) لـ ${unpaidPlayers.length} لاعب بنجاح ✅`);
       setShowBranchSettleModal(false);
-      loadMonthData();
+      // Wait for DB propagation then reload fresh data
+      setTimeout(() => loadMonthData(), 800);
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء التسديد الجماعي للفرع: ' + err.message);
     } finally {
