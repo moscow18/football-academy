@@ -81,7 +81,7 @@ export default function OwnerDashboard() {
 
       let leaguePlayersQuery = supabase
         .from('players')
-        .select('id, payment_type, fee_amount_periodic')
+        .select('id, payment_type, fee_amount_periodic, notes, group_id, groups(name)')
         .limit(10000);
       if (branchFilter) leaguePlayersQuery = leaguePlayersQuery.eq('branch_id', branchFilter);
 
@@ -127,11 +127,33 @@ export default function OwnerDashboard() {
       const { data: debtListData } = await supabase.rpc('rpc_debt_list', { p_branch_id: branchFilter });
       const totalDebt = debtListData ? debtListData.reduce((sum: number, d: any) => sum + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0) : 0;
 
-      // ⚡ Create Set of League Player IDs
+      // ⚡ Create Set of League Player IDs from all sources (players table, groups, debtList)
       const leaguePlayerIds = new Set<string>();
       (allPlayersForType || []).forEach((p: any) => {
-        if (p.payment_type === 'quarterly' || Number(p.fee_amount_periodic || 0) > 0) {
+        const groupObj = Array.isArray(p.groups) ? p.groups[0] : p.groups;
+        const gName = String(groupObj?.name || '').toLowerCase();
+        const pNotes = String(p.notes || '').toLowerCase();
+        if (
+          p.payment_type === 'quarterly' || 
+          Number(p.fee_amount_periodic || 0) > 0 ||
+          gName.includes('دوري') ||
+          gName.includes('الدوري') ||
+          pNotes.includes('دوري') ||
+          pNotes.includes('الدوري')
+        ) {
           leaguePlayerIds.add(p.id);
+        }
+      });
+
+      (debtListData || []).forEach((d: any) => {
+        const gName = String(d.group_name || '').toLowerCase();
+        if (
+          d.payment_type === 'quarterly' || 
+          Number(d.fee_amount_periodic || 0) > 0 ||
+          gName.includes('دوري') ||
+          gName.includes('الدوري')
+        ) {
+          leaguePlayerIds.add(d.player_id || d.id);
         }
       });
 
