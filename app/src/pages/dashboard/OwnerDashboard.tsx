@@ -68,8 +68,6 @@ export default function OwnerDashboard() {
       let payQuery2 = supabase
         .from('payments')
         .select('id, amount, notes, player_id, branch_id, payment_date, period_covered, players(payment_type, fee_amount_periodic)')
-        .gte('payment_date', startOfMonth)
-        .lte('payment_date', endOfMonth)
         .limit(10000);
       if (branchFilter) payQuery2 = payQuery2.eq('branch_id', branchFilter);
 
