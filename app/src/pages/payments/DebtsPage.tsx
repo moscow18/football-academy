@@ -179,11 +179,14 @@ export default function DebtsPage() {
   const selectedBranchObj = branches.find((b) => b.id === branchFilter);
   const currentBranchTitle = selectedBranchObj ? selectedBranchObj.name : 'جميع الفروع';
 
+  const [payReceiptNumber, setPayReceiptNumber] = useState('');
+
   // === Actions ===
   const openPayModal = (player: SimpleMonthPlayer) => {
     setPlayerToPay(player);
     setPayAmount(String(player.fee_amount || 0));
     setPayMethod('cash');
+    setPayReceiptNumber('');
   };
 
   // Check if a month is past (locked) relative to the active financial month
@@ -214,6 +217,7 @@ export default function DebtsPage() {
     setIsSubmittingPay(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
+      const customReceipt = payReceiptNumber.trim();
       const { error } = await supabase.from('payments').insert({
         player_id: playerToPay.id,
         branch_id: playerToPay.branch_id,
@@ -221,12 +225,14 @@ export default function DebtsPage() {
         payment_date: todayStr,
         method: payMethod,
         period_covered: selectedMonth,
-        notes: `سداد اشتراك شهر ${formatMonth(selectedMonth)}`,
+        notes: customReceipt 
+          ? `سداد اشتراك شهر ${formatMonth(selectedMonth)} (رقم الإيصال: ${customReceipt})`
+          : `سداد اشتراك شهر ${formatMonth(selectedMonth)}`,
       });
       if (error) throw error;
 
-      // ⚡ Auto-create invoice
-      const invNum = `INV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      // ⚡ Auto-create invoice with custom or generated invoice number
+      const invNum = customReceipt || `INV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
       await supabase.from('invoices').insert({
         invoice_number: invNum,
         player_id: playerToPay.id,
@@ -236,7 +242,7 @@ export default function DebtsPage() {
         notes: `فاتورة سداد اشتراك شهر ${formatMonth(selectedMonth)}`,
       });
 
-      toast('success', `تم تسجيل سداد شهر ${formatMonth(selectedMonth)} للاعب (${playerToPay.full_name}) بنجاح ✅`);
+      toast('success', `تم تسجيل سداد وإصدار الإيصال برقم (${invNum}) لشهر ${formatMonth(selectedMonth)} للاعب (${playerToPay.full_name}) بنجاح ✅`);
       setPlayerToPay(null);
       setTimeout(() => loadMonthData(), 500);
     } catch (err: any) {
@@ -680,6 +686,17 @@ export default function DebtsPage() {
               <option value="cash">💵 نقدي (كاش)</option>
               <option value="transfer">🏦 تحويل بنكي</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-emerald-800 mb-1">
+              🧾 رقم الإيصال الورقي / الدفتر (اختياري)
+            </label>
+            <input 
+              value={payReceiptNumber} 
+              onChange={(e) => setPayReceiptNumber(e.target.value)}
+              className="w-full py-2.5 px-3 border-2 border-emerald-300 rounded-xl text-sm font-mono font-bold focus:border-emerald-600 focus:outline-none" 
+              placeholder="مثال: 1045 أو REC-88" 
+            />
           </div>
         </div>
       </Modal>

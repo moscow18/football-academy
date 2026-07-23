@@ -7,6 +7,7 @@ import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import type { Invoice } from '../../lib/types';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import Modal from '../../components/ui/Modal';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import { FileText, Download } from 'lucide-react';
 
@@ -16,6 +17,10 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Edit Invoice Number State
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editInvoiceNumValue, setEditInvoiceNumValue] = useState('');
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -118,6 +123,28 @@ export default function InvoicesPage() {
     }
   }
 
+  const handleUpdateInvoiceNumber = async () => {
+    if (!editingInvoice || !editInvoiceNumValue.trim()) {
+      toast('error', 'يرجى إدخال رقم الإيصال الورقي');
+      return;
+    }
+
+    const cleanNum = editInvoiceNumValue.trim();
+    const { error } = await supabase
+      .from('invoices')
+      .update({ invoice_number: cleanNum })
+      .eq('id', editingInvoice.id);
+
+    if (error) {
+      toast('error', `فشل تحديث رقم الإيصال: ${error.message}`);
+      return;
+    }
+
+    toast('success', 'تم تعديل رقم الإيصال بنجاح ✅');
+    setEditingInvoice(null);
+    loadInvoices();
+  };
+
   // Filter invoices by search
   const filteredInvoices = invoices.filter(inv => {
     if (!searchQuery) return true;
@@ -203,7 +230,19 @@ export default function InvoicesPage() {
                 {filteredInvoices.map(inv => (
                   <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="px-5 md:px-6 py-4 md:py-5 font-mono text-xs md:text-sm font-bold text-slate-600">
-                      {inv.invoice_number}
+                      <div className="flex items-center gap-2">
+                        <span>{inv.invoice_number}</span>
+                        <button
+                          onClick={() => {
+                            setEditingInvoice(inv);
+                            setEditInvoiceNumValue(inv.invoice_number);
+                          }}
+                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          title="تعديل رقم الإيصال يدوياً"
+                        >
+                          ✏️
+                        </button>
+                      </div>
                     </td>
                     <td className="px-5 md:px-6 py-4 md:py-5">
                       <div className="font-extrabold text-slate-900 text-sm md:text-base">{inv.player_name || '—'}</div>
@@ -229,7 +268,7 @@ export default function InvoicesPage() {
                         className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs md:text-sm font-extrabold hover:bg-blue-100 transition-all cursor-pointer border border-blue-200 flex items-center gap-1.5 mx-auto hover:scale-105 active:scale-95"
                       >
                         <Download size={16} />
-                        PDF
+                        طباعة PDF
                       </button>
                     </td>
                   </tr>
@@ -239,6 +278,44 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Invoice Number Modal */}
+      <Modal 
+        isOpen={!!editingInvoice} 
+        onClose={() => setEditingInvoice(null)} 
+        title="تعديل رقم الإيصال / الفاتورة"
+        footer={
+          <div className="flex justify-end gap-2 w-full font-[Cairo]">
+            <button 
+              onClick={handleUpdateInvoiceNumber}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm cursor-pointer shadow-sm"
+            >
+              حفظ رقم الإيصال
+            </button>
+            <button 
+              onClick={() => setEditingInvoice(null)} 
+              className="px-5 py-2.5 border border-slate-200 rounded-xl text-slate-600 text-sm font-bold cursor-pointer"
+            >
+              إلغاء
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4 font-[Cairo]">
+          <p className="text-xs text-slate-500 font-bold">
+            أدخل رقم الإيصال الورقي المطلوب لمراجعة الدفتر وتدقيق الفواتير:
+          </p>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">رقم الإيصال الورقي / الدفتر *</label>
+            <input 
+              value={editInvoiceNumValue} 
+              onChange={(e) => setEditInvoiceNumValue(e.target.value)} 
+              className="w-full py-3 px-4 border-2 border-slate-200 rounded-xl text-sm font-[Cairo] focus:border-blue-500 focus:outline-none font-bold" 
+              placeholder="مثال: 1045 أو REC-88" 
+            />
+          </div>
+        </div>
+      </Modal>
 
       {/* Hidden Templates for PDF Generation */}
       <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
@@ -252,19 +329,19 @@ export default function InvoicesPage() {
               dir="rtl"
               style={{ backgroundColor: '#ffffff', color: '#1e293b' }}
             >
-              <div className="flex justify-between items-center pb-6 mb-6" style={{ borderBottom: '2px solid #059669' }}>
+              <div className="flex justify-between items-center pb-6 mb-6" style={{ borderBottom: '3px solid #059669' }}>
                 <div>
-                  <h2 className="text-3xl font-extrabold mb-1" style={{ color: '#065f46' }}>أكاديمية VFC</h2>
-                  <p className="font-bold" style={{ color: '#64748b' }}>{branch?.name || 'الفرع الرئيسي'}</p>
+                  <h2 className="text-3xl font-black mb-1" style={{ color: '#065f46' }}>أكاديمية VFC</h2>
+                  <p className="font-bold text-sm" style={{ color: '#64748b' }}>{branch?.name || 'الفرع الرئيسي'}</p>
                 </div>
-                <div className="text-center w-16 h-16 rounded-2xl flex items-center justify-center text-4xl" style={{ backgroundColor: '#d1fae5', color: '#059669' }}>
-                  ⚽
+                <div className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center p-1" style={{ backgroundColor: '#0f172a', border: '2px solid #fbbf24' }}>
+                  <img src="/logo.png" alt="VFC Official Logo" className="w-full h-full object-contain" />
                 </div>
               </div>
 
-              <div className="text-center mb-8 p-4 rounded-xl" style={{ backgroundColor: '#f8fafc', border: '1px solid #f1f5f9' }}>
-                <h3 className="text-xl font-bold mb-2">فاتورة رسمية</h3>
-                <p className="font-mono text-lg" style={{ color: '#64748b' }}>#{inv.invoice_number}</p>
+              <div className="text-center mb-8 p-4 rounded-2xl" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <h3 className="text-xl font-black mb-1" style={{ color: '#0f172a' }}>إيصال استلام نقدية رسمي</h3>
+                <p className="font-mono text-xl font-bold" style={{ color: '#0284c7' }}>رقم الإيصال: #{inv.invoice_number}</p>
               </div>
 
               <div className="space-y-4 mb-8">
@@ -274,20 +351,20 @@ export default function InvoicesPage() {
                 </div>
                 <div className="flex justify-between p-3" style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <span className="font-semibold" style={{ color: '#64748b' }}>اسم اللاعب:</span>
-                  <span className="font-bold text-lg">{inv.player_name || '—'}</span>
+                  <span className="font-extrabold text-lg">{inv.player_name || '—'}</span>
                 </div>
                 <div className="flex justify-between p-3" style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <span className="font-semibold" style={{ color: '#64748b' }}>كود اللاعب:</span>
                   <span className="font-mono font-bold" style={{ color: '#475569' }}>{inv.player_code || '—'}</span>
                 </div>
-                <div className="flex justify-between p-4 rounded-lg mt-4" style={{ backgroundColor: '#ecfdf5', border: '1px solid #d1fae5' }}>
+                <div className="flex justify-between p-4 rounded-xl mt-4" style={{ backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0' }}>
                   <span className="font-bold text-lg" style={{ color: '#065f46' }}>المبلغ المدفوع:</span>
-                  <span className="font-bold text-2xl" style={{ color: '#059669' }}>{formatMoney(inv.amount)} ج.م</span>
+                  <span className="font-extrabold text-2xl" style={{ color: '#059669' }}>{formatMoney(inv.amount)} ج.م</span>
                 </div>
               </div>
 
-              <div className="text-center mt-12 pt-6" style={{ borderTop: '1px solid #e2e8f0' }}>
-                <p className="text-sm font-semibold mb-1" style={{ color: '#94a3b8' }}>شكراً لاختياركم أكاديمية VFC</p>
+              <div className="text-center mt-10 pt-6" style={{ borderTop: '1px solid #e2e8f0' }}>
+                <p className="text-sm font-bold mb-1" style={{ color: '#64748b' }}>شكراً لاختياركم أكاديمية VFC لكرة القدم ⚽</p>
                 <p className="text-xs font-mono" style={{ color: '#94a3b8' }}>Printed on {new Date().toLocaleDateString('en-GB')}</p>
               </div>
             </div>

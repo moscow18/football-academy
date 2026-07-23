@@ -59,14 +59,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         }
       >
         {/* Header Logo */}
-        <div className="p-8 pb-6 flex flex-col items-center border-b border-transparent">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-emerald-700 text-white rounded-xl flex items-center justify-center shadow-md">
-              <span className="text-2xl leading-none -mt-1 font-bold">⚽</span>
+        <div className="p-6 pb-4 flex flex-col items-center border-b border-slate-100">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-12 h-12 bg-slate-900 rounded-xl overflow-hidden border-2 border-amber-400 p-0.5 flex items-center justify-center shadow-md">
+              <img src="/logo.png" alt="VFC Logo" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col">
-              <h2 className="text-emerald-800 text-2xl font-extrabold tracking-tight font-arabic leading-none mb-1">أكاديمية VFC</h2>
-              <span className="text-slate-500 text-[10px] font-bold font-arabic leading-none">نظام الإدارة الرياضية</span>
+              <h2 className="text-emerald-900 text-xl font-black tracking-tight font-arabic leading-none mb-1">أكاديمية VFC</h2>
+              <span className="text-slate-500 text-[10px] font-bold font-arabic leading-none">نظام الإدارة الرياضية والشؤون الماليّة</span>
             </div>
           </div>
         </div>

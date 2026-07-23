@@ -56,12 +56,14 @@ export default function PlayersPage() {
     group_id: string; branch_id: string;
     fee_amount: string; fee_amount_periodic: string; notes: string; status: 'active' | 'inactive' | 'suspended';
     payment_type: string; photo_url: string; birth_year: string; registration_date: string;
+    receipt_number: string;
   }>({
     full_name: '', phone: '', parent_phone: '', date_of_birth: '',
     group_id: '', branch_id: '',
     fee_amount: '', fee_amount_periodic: '', notes: '', status: 'active',
     payment_type: 'monthly', photo_url: '', birth_year: '2009',
     registration_date: new Date().toISOString().split('T')[0],
+    receipt_number: '',
   });
 
   const loadGroups = useCallback(async () => {
@@ -169,6 +171,7 @@ export default function PlayersPage() {
       fee_amount: '', fee_amount_periodic: '', notes: '', status: 'active',
       payment_type: 'monthly', photo_url: '', birth_year: '2009',
       registration_date: new Date().toISOString().split('T')[0],
+      receipt_number: '',
     });
     setShowForm(true);
   }
@@ -190,6 +193,7 @@ export default function PlayersPage() {
       photo_url: player.photo_url || '',
       birth_year: player.date_of_birth ? player.date_of_birth.substring(0, 4) : '2009',
       registration_date: player.registration_date || new Date().toISOString().split('T')[0],
+      receipt_number: '',
     });
     setShowForm(true);
   }
@@ -237,6 +241,7 @@ export default function PlayersPage() {
         const targetBranch = branches.find(b => b.id === payload.branch_id);
         const closingDay = targetBranch?.closing_day || (targetBranch?.name?.includes('الثلاثي') ? 20 : 30);
         const periodCovered = getFinancialMonthForDate(regDateStr, closingDay);
+        const customReceipt = form.receipt_number?.trim();
 
         await supabase.from('payments').insert({
           player_id: insertedPlayer.id,
@@ -245,21 +250,23 @@ export default function PlayersPage() {
           payment_date: regDateStr,
           method: 'cash',
           period_covered: periodCovered,
-          notes: `تسديد تلقائي لاشتراك بداية اللاعب لشهر ${formatMonth(periodCovered)}`,
+          notes: customReceipt 
+            ? `تسديد تلقائي لاشتراك بداية اللاعب لشهر ${formatMonth(periodCovered)} (رقم الإيصال: ${customReceipt})`
+            : `تسديد تلقائي لاشتراك بداية اللاعب لشهر ${formatMonth(periodCovered)}`,
         });
 
-        // ⚡ AUTO INVOICE FOR NEW PLAYER
-        const invNum = `INV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+        // ⚡ AUTO INVOICE FOR NEW PLAYER WITH CUSTOM OR GENERATED INVOICE NUMBER
+        const invNum = customReceipt || `INV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
         await supabase.from('invoices').insert({
           invoice_number: invNum,
           player_id: insertedPlayer.id,
           branch_id: insertedPlayer.branch_id,
           amount: feeAmount,
           issued_date: regDateStr,
-          notes: `فاتورة تسديد تلقائي لاشتراك بداية اللاعب لشهر ${formatMonth(periodCovered)}`,
+          notes: `فاتورة تسديد لاشتراك بداية اللاعب لشهر ${formatMonth(periodCovered)}`,
         });
 
-        toast('success', `تم إضافة اللاعب وتسجيل سداد وإصدار فاتورة شهر (${formatMonth(periodCovered)}) تلقائياً ✅`);
+        toast('success', `تم إضافة اللاعب وتسجيل سداد وإصدار الفاتورة برقم (${invNum}) لشهر (${formatMonth(periodCovered)}) تلقائياً ✅`);
       } else {
         toast('success', 'تم إضافة اللاعب بنجاح');
       }
@@ -808,9 +815,15 @@ export default function PlayersPage() {
               className="input-field font-tabular" />
           </div>
           <div>
-            <label className="form-label">تاريخ التسجيل والاشتراك *</label>
-            <input type="date" value={form.registration_date} onChange={(e) => setForm(f => ({ ...f, registration_date: e.target.value }))}
-              className="input-field font-tabular" />
+            <label className="form-label font-bold text-emerald-800">
+              🧾 رقم الإيصال الورقي / الدفتر (اختياري)
+            </label>
+            <input 
+              value={form.receipt_number} 
+              onChange={(e) => setForm(f => ({ ...f, receipt_number: e.target.value }))}
+              className="input-field font-bold font-mono border-emerald-300 focus:border-emerald-600" 
+              placeholder="مثال: 1045 أو REC-88" 
+            />
           </div>
           <div>
             <label className="form-label">صورة اللاعب (من الجهاز)</label>
