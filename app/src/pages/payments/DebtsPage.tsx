@@ -186,8 +186,21 @@ export default function DebtsPage() {
     setPayMethod('cash');
   };
 
+  // Check if a month is past (locked) relative to the active financial month
+  const isMonthLocked = (month: string): boolean => {
+    const activeMonth = getActiveFinancialMonth(selectedBranch);
+    return month < activeMonth;
+  };
+
+  const monthLocked = isMonthLocked(selectedMonth);
+
   const handleConfirmPay = async () => {
     if (!playerToPay) return;
+    if (monthLocked) {
+      toast('error', `شهر ${formatMonth(selectedMonth)} مقفول ❌ لا يمكن التعديل على شهر سابق`);
+      setPlayerToPay(null);
+      return;
+    }
     if (playerToPay.is_paid) {
       toast('info', `اللاعب (${playerToPay.full_name}) مسدد بالفعل لشهر ${formatMonth(selectedMonth)} ✅`);
       setPlayerToPay(null);
@@ -211,6 +224,18 @@ export default function DebtsPage() {
         notes: `سداد اشتراك شهر ${formatMonth(selectedMonth)}`,
       });
       if (error) throw error;
+
+      // ⚡ Auto-create invoice
+      const invNum = `INV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      await supabase.from('invoices').insert({
+        invoice_number: invNum,
+        player_id: playerToPay.id,
+        branch_id: playerToPay.branch_id,
+        amount: amountNum,
+        issued_date: todayStr,
+        notes: `فاتورة سداد اشتراك شهر ${formatMonth(selectedMonth)}`,
+      });
+
       toast('success', `تم تسجيل سداد شهر ${formatMonth(selectedMonth)} للاعب (${playerToPay.full_name}) بنجاح ✅`);
       setPlayerToPay(null);
       setTimeout(() => loadMonthData(), 500);
@@ -223,6 +248,10 @@ export default function DebtsPage() {
 
   // ✅ Settle entire branch for selected financial month
   const handleSettleBranch = async (branchId: string, branchName: string) => {
+    if (monthLocked) {
+      toast('error', `شهر ${formatMonth(selectedMonth)} مقفول ❌ لا يمكن التعديل على شهر سابق`);
+      return;
+    }
     const unpaidPlayers = playersList.filter(p => p.branch_id === branchId && !p.is_paid);
     if (unpaidPlayers.length === 0) {
       toast('info', `جميع لاعبي فرع (${branchName}) مسددين بالفعل لشهر ${formatMonth(selectedMonth)} ✅`);
@@ -246,7 +275,19 @@ export default function DebtsPage() {
 
       const { error } = await supabase.from('payments').insert(newPayments);
       if (error) throw error;
-      toast('success', `✅ تم تسديد شهر ${formatMonth(selectedMonth)} لجميع لاعبي فرع (${branchName}) — ${unpaidPlayers.length} لاعب`);
+
+      // ⚡ Auto-create invoices for all settled players
+      const invoiceRows = unpaidPlayers.map(p => ({
+        invoice_number: `INV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+        player_id: p.id,
+        branch_id: p.branch_id,
+        amount: p.fee_amount,
+        issued_date: todayStr,
+        notes: `فاتورة سداد جماعي لشهر ${formatMonth(selectedMonth)} — فرع ${branchName}`,
+      }));
+      await supabase.from('invoices').insert(invoiceRows);
+
+      toast('success', `✅ تم تسديد شهر ${formatMonth(selectedMonth)} لجميع لاعبي فرع (${branchName}) — ${unpaidPlayers.length} لاعب + إنشاء الفواتير`);
       setTimeout(() => loadMonthData(), 800);
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء التسديد الجماعي: ' + err.message);
@@ -257,6 +298,10 @@ export default function DebtsPage() {
 
   // 🔄 Rollback: delete all payments for this branch + this month
   const handleRollbackBranch = async (branchId: string, branchName: string) => {
+    if (monthLocked) {
+      toast('error', `شهر ${formatMonth(selectedMonth)} مقفول ❌ لا يمكن التعديل على شهر سابق`);
+      return;
+    }
     const paidPlayers = playersList.filter(p => p.branch_id === branchId && p.is_paid);
     if (paidPlayers.length === 0) {
       toast('info', `لا توجد دفعات مسجلة لفرع (${branchName}) في شهر ${formatMonth(selectedMonth)} لإرجاعها`);
@@ -310,8 +355,13 @@ export default function DebtsPage() {
               ⚽ متابعة سداد الاشتراكات الشهرية
             </h1>
             <p className="text-slate-500 text-sm font-semibold mt-1">
-              متابعة واستحقاق الاشتراكات حسب الشهر المالي النشط لكل فرع (الشهر الحالي أو الشهر الجديد بعد التقفيل)
+              متابعة واستحقاق الاشتراكات حسب الشهر المالي النشط لكل فرع
             </p>
+            {monthLocked && (
+              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl text-xs font-extrabold">
+                🔒 شهر {formatMonth(selectedMonth)} مقفول — لا يمكن التسديد أو الإرجاع (للعرض فقط)
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 border border-slate-200 rounded-xl shadow-2xs">
             <Calendar size={18} className="text-emerald-600" />
@@ -516,67 +566,71 @@ export default function DebtsPage() {
             <table className="w-full text-right">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm">اللاعب</th>
-                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm hidden sm:table-cell">الكود</th>
-                  {!branchFilter && <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm">الفرع</th>}
-                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm hidden md:table-cell">المجموعة</th>
-                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm">الاشتراك</th>
-                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm text-center">حالة شهر ({formatMonth(selectedMonth)})</th>
-                  <th className="px-4 md:px-5 py-3.5 text-slate-600 font-bold text-xs md:text-sm text-center">إجراء</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm">اللاعب</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm hidden sm:table-cell">الكود</th>
+                  {!branchFilter && <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm">الفرع</th>}
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm hidden md:table-cell">المجموعة</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm">الاشتراك</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm text-center">حالة شهر ({formatMonth(selectedMonth)})</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm text-center">إجراء</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredData.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="px-4 md:px-5 py-3.5 md:py-4 font-extrabold text-slate-900 text-sm">
+                    <td className="px-5 md:px-6 py-4 md:py-5 font-extrabold text-slate-900 text-sm md:text-base">
                       {p.full_name}
                     </td>
-                    <td className="px-4 md:px-5 py-3.5 md:py-4 font-mono text-xs text-slate-500 font-bold hidden sm:table-cell">
+                    <td className="px-5 md:px-6 py-4 md:py-5 font-mono text-xs md:text-sm text-slate-500 font-bold hidden sm:table-cell">
                       {p.player_code}
                     </td>
                     {!branchFilter && (
-                      <td className="px-4 md:px-5 py-3.5 md:py-4">
+                      <td className="px-5 md:px-6 py-4 md:py-5">
                         <BranchBadge branchId={p.branch_id} branchName={p.branch_name} />
                       </td>
                     )}
-                    <td className="px-4 md:px-5 py-3.5 md:py-4 text-xs font-semibold text-slate-600 hidden md:table-cell">
+                    <td className="px-5 md:px-6 py-4 md:py-5 text-xs md:text-sm font-bold text-slate-600 hidden md:table-cell">
                       {p.group_name}
                     </td>
-                    <td className="px-4 md:px-5 py-3.5 md:py-4 font-extrabold text-slate-900 text-sm font-tabular">
+                    <td className="px-5 md:px-6 py-4 md:py-5 font-extrabold text-slate-900 text-sm md:text-base font-tabular">
                       {formatMoney(p.fee_amount)}
                     </td>
-                    <td className="px-4 md:px-5 py-3.5 md:py-4 text-center">
+                    <td className="px-5 md:px-6 py-4 md:py-5 text-center">
                       {p.is_paid ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 md:px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[11px] md:text-xs font-extrabold border border-emerald-200">
-                          <CheckCircle2 size={14} className="text-emerald-600" /> مسدد ✅
+                        <span className="inline-flex items-center gap-1.5 px-3 md:px-4 py-1.5 bg-emerald-100 text-emerald-800 rounded-full text-xs md:text-sm font-extrabold border border-emerald-200">
+                          <CheckCircle2 size={16} className="text-emerald-600" /> مسدد ✅
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 md:px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-[11px] md:text-xs font-extrabold border border-rose-200">
-                          <XCircle size={14} className="text-rose-600" /> غير مسدد
+                        <span className="inline-flex items-center gap-1.5 px-3 md:px-4 py-1.5 bg-rose-100 text-rose-800 rounded-full text-xs md:text-sm font-extrabold border border-rose-200">
+                          <XCircle size={16} className="text-rose-600" /> غير مسدد
                         </span>
                       )}
                     </td>
-                    <td className="px-4 md:px-5 py-3.5 md:py-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {!p.is_paid ? (
+                    <td className="px-5 md:px-6 py-4 md:py-5 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {!p.is_paid && !monthLocked ? (
                           <button
                             onClick={() => openPayModal(p)}
-                            className="px-3 md:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] md:text-xs font-extrabold transition-all shadow-sm flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95"
+                            className="px-4 md:px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs md:text-sm font-extrabold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
                           >
-                            <Check size={14} /> تسديد
+                            <Check size={16} /> تسديد
                           </button>
-                        ) : (
-                          <span className="text-[10px] md:text-xs text-slate-400 font-bold font-tabular">
+                        ) : p.is_paid ? (
+                          <span className="text-xs md:text-sm text-slate-400 font-bold font-tabular">
                             {formatDate(p.payment_date || '')}
                           </span>
+                        ) : (
+                          <span className="text-xs text-amber-600 font-bold">🔒 مقفول</span>
                         )}
-                        <button
-                          onClick={() => handleFreezePlayer(p)}
-                          className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="تجميد"
-                        >
-                          <PauseCircle size={16} />
-                        </button>
+                        {!monthLocked && (
+                          <button
+                            onClick={() => handleFreezePlayer(p)}
+                            className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="تجميد"
+                          >
+                            <PauseCircle size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
