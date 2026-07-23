@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatMonth, getCurrentMonth } from '../../lib/utils';
+import { formatMonth, getActiveFinancialMonth } from '../../lib/utils';
 import { Users, TrendingUp, TrendingDown, Activity, PieChart } from 'lucide-react';
 import { PageLoading } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
@@ -33,14 +33,14 @@ export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => 
-    getCurrentMonth()
+    getActiveFinancialMonth(selectedBranch)
   );
 
   const [prevBranchId, setPrevBranchId] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedBranchId !== prevBranchId) {
-      setSelectedMonth(getCurrentMonth());
+      setSelectedMonth(getActiveFinancialMonth(selectedBranch));
       setPrevBranchId(selectedBranchId);
     }
   }, [selectedBranchId, selectedBranch, prevBranchId]);
@@ -60,9 +60,8 @@ export default function OwnerDashboard() {
 
       let payQuery = supabase
         .from('payments')
-        .select('amount, player_id, branch_id, players(payment_type, fee_amount_periodic)')
-        .gte('payment_date', startOfMonth)
-        .lte('payment_date', endOfMonth);
+        .select('amount, player_id, branch_id, period_covered, players(payment_type, fee_amount_periodic)')
+        .eq('period_covered', selectedMonth);
       if (branchFilter) payQuery = payQuery.eq('branch_id', branchFilter);
 
       let kitQuery = supabase
