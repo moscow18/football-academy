@@ -62,14 +62,17 @@ export default function OwnerDashboard() {
         .from('payments')
         .select('amount, notes, player_id, branch_id, period_covered, players(payment_type, fee_amount_periodic)')
         .eq('period_covered', selectedMonth);
-      if (branchFilter) payQuery = payQuery.eq('branch_id', branchFilter);
-
       let kitQuery = supabase
         .from('kits_sales')
         .select('total_amount, branch_id')
         .gte('created_at', `${startOfMonth}T00:00:00`)
         .lte('created_at', `${endOfMonth}T23:59:59`);
       if (branchFilter) kitQuery = kitQuery.eq('branch_id', branchFilter);
+
+      let leaguePlayersQuery = supabase
+        .from('players')
+        .select('id, payment_type, fee_amount_periodic');
+      if (branchFilter) leaguePlayersQuery = leaguePlayersQuery.eq('branch_id', branchFilter);
 
       const [
         { count: playersCount },
@@ -78,7 +81,8 @@ export default function OwnerDashboard() {
         { data: recentPlayersData },
         { data: rawProfitData },
         { data: monthPayments },
-        { data: monthKits }
+        { data: monthKits },
+        { data: allPlayersForType }
       ] = await Promise.all([
         playersQuery,
         supabase.rpc('get_monthly_branch_stats', { p_month: selectedMonth }),
@@ -90,7 +94,8 @@ export default function OwnerDashboard() {
           .limit(5),
         supabase.rpc('rpc_net_profit', { p_branch_id: branchFilter, p_month: selectedMonth }),
         payQuery,
-        kitQuery
+        kitQuery,
+        leaguePlayersQuery
       ]);
 
       setProfitData((rawProfitData as NetProfit[]) || []);
@@ -109,6 +114,14 @@ export default function OwnerDashboard() {
       const { data: debtListData } = await supabase.rpc('rpc_debt_list', { p_branch_id: branchFilter });
       const totalDebt = debtListData ? debtListData.reduce((sum: number, d: any) => sum + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0) : 0;
 
+      // ⚡ Create Set of League Player IDs
+      const leaguePlayerIds = new Set<string>();
+      (allPlayersForType || []).forEach((p: any) => {
+        if (p.payment_type === 'quarterly' || Number(p.fee_amount_periodic || 0) > 0) {
+          leaguePlayerIds.add(p.id);
+        }
+      });
+
       // ⚡ CALCULATE REAL ACCURATE MONETARY TOTALS FROM DB
       let totalCollectedMonthly = 0;
       let totalCollectedPeriodic = 0;
@@ -117,6 +130,7 @@ export default function OwnerDashboard() {
         const playerObj = Array.isArray(p.players) ? p.players[0] : p.players;
         const notes = String(p.notes || '').toLowerCase();
         const isLeague = 
+          leaguePlayerIds.has(p.player_id) ||
           playerObj?.payment_type === 'quarterly' || 
           Number(playerObj?.fee_amount_periodic || 0) > 0 ||
           notes.includes('دوري') ||
