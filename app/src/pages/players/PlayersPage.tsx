@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
 import { useToast } from '../../contexts/ToastContext';
-import { formatMoney, formatDate, buildWhatsAppLink } from '../../lib/utils';
+import { formatMoney, formatMonth, formatDate, buildWhatsAppLink } from '../../lib/utils';
 import { Search, Plus, Download, Edit2, Trash2, Users } from 'lucide-react';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
@@ -227,9 +227,46 @@ export default function PlayersPage() {
       if (error) { toast('error', 'خطأ في تحديث اللاعب'); return; }
       toast('success', 'تم تحديث بيانات اللاعب بنجاح');
     } else {
-      const { error } = await supabase.from('players').insert(payload);
-      if (error) { toast('error', 'خطأ في إضافة اللاعب'); return; }
-      toast('success', 'تم إضافة اللاعب بنجاح');
+      const { data: insertedPlayer, error } = await supabase.from('players').insert(payload).select().single();
+      if (error) { toast('error', 'خطأ في إضافة اللاعب: ' + error.message); return; }
+
+      // ⚡ AUTO PAYMENT FOR NEW PLAYER BASED ON CLOSING DAY RULE
+      const feeAmount = Number(payload.fee_amount || 0);
+      if (feeAmount > 0 && insertedPlayer) {
+        const regDateStr = payload.registration_date || new Date().toISOString().split('T')[0];
+        const regDate = new Date(regDateStr);
+        const regDay = regDate.getDate();
+        let targetYear = regDate.getFullYear();
+        let targetMonthNum = regDate.getMonth() + 1; // 1-indexed
+
+        const targetBranch = branches.find(b => b.id === payload.branch_id);
+        const closingDay = targetBranch?.closing_day || (targetBranch?.name?.includes('الثلاثي') ? 20 : 30);
+
+        // If registered after closing day -> shift to next month
+        if (regDay > closingDay) {
+          targetMonthNum += 1;
+          if (targetMonthNum > 12) {
+            targetMonthNum = 1;
+            targetYear += 1;
+          }
+        }
+
+        const periodCovered = `${targetYear}-${String(targetMonthNum).padStart(2, '0')}`;
+
+        await supabase.from('payments').insert({
+          player_id: insertedPlayer.id,
+          branch_id: insertedPlayer.branch_id,
+          amount: feeAmount,
+          payment_date: regDateStr,
+          method: 'cash',
+          period_covered: periodCovered,
+          notes: `تسديد تلقائي لاشتراك بداية اللاعب لشهر ${formatMonth(periodCovered)}`,
+        });
+
+        toast('success', `تم إضافة اللاعب وتسجيل سداد شهر (${formatMonth(periodCovered)}) تلقائياً ✅`);
+      } else {
+        toast('success', 'تم إضافة اللاعب بنجاح');
+      }
     }
     } finally {
       setIsSaving(false);

@@ -2,7 +2,7 @@ import Modal from '../ui/Modal';
 import { formatMoney, formatMonth } from '../../lib/utils';
 import { Users, TrendingUp, TrendingDown, Award, Calendar } from 'lucide-react';
 
-export type KPIType = 'players' | 'monthly_sub' | 'league_sub' | 'expenses_salaries';
+export type KPIType = 'players' | 'monthly_sub' | 'league_sub' | 'expenses_salaries' | 'kits';
 
 interface KPIAnalyticsModalProps {
   isOpen: boolean;
@@ -14,6 +14,7 @@ interface KPIAnalyticsModalProps {
     activePlayersCount: number;
     monthlyRevenue: number;
     leagueRevenue: number;
+    kitsRevenue?: number;
     totalExpenses: number;
     totalSalaries: number;
     recentPlayers: any[];
@@ -31,6 +32,7 @@ export default function KPIAnalyticsModal({
   if (!isOpen || !kpiType) return null;
 
   const totalExpensesAndSalaries = data.totalExpenses + data.totalSalaries;
+  const kitsRev = data.kitsRevenue || 0;
 
   const getTitle = () => {
     switch (kpiType) {
@@ -38,6 +40,7 @@ export default function KPIAnalyticsModal({
       case 'monthly_sub': return '🟢 تحليلات إيرادات الاشتراكات الشهرية';
       case 'league_sub': return '🏆 تحليلات إيرادات اشتراكات الدوري';
       case 'expenses_salaries': return '🔻 تفكيك الالتزامات والمصروفات والرواتب';
+      case 'kits': return '👕 تحليلات ومبيعات أطقم وملابس الأكاديمية';
     }
   };
 
@@ -109,7 +112,7 @@ export default function KPIAnalyticsModal({
           <div className="space-y-4">
             <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl flex items-center justify-between">
               <div>
-                <div className="text-xs text-emerald-700 font-bold mb-1">إجمالي تحصيل الاشتراكات الشهرية</div>
+                <div className="text-xs text-emerald-700 font-bold mb-1">إجمالي تحصيل الاشتراكات الشهرية الفعلي</div>
                 <div className="text-3xl font-extrabold text-emerald-900 font-tabular">{formatMoney(data.monthlyRevenue)} <span className="text-sm font-bold">ج.م</span></div>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-2xl font-bold shadow-md">
@@ -119,8 +122,8 @@ export default function KPIAnalyticsModal({
 
             <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 text-xs text-slate-600 leading-relaxed">
               <h4 className="font-bold text-slate-900 text-sm">💡 كيفية احتساب الإيراد الشهري:</h4>
-              <p>• يُسجل هذا المبلغ آلياً عن كل عملية دفع سداد اشتراك شهري قام بها أولياء الأمور خلال شهر <strong>{formatMonth(month)}</strong>.</p>
-              <p>• لا يشمل هذا المبلغ اشتراكات لاعبي الدوري ولا مبيعات الأطقم لضمان دقة الحسابات المالية.</p>
+              <p>• يُحسب هذا المبلغ حصريةً وبدقة من عمليات الدفع الفعلية المسددة لشهر <strong>{formatMonth(month)}</strong>.</p>
+              <p>• لا يعتمد على التوقعات أو التقديرات العشوائية لتأمين بيانات مالية حقيقية 100%.</p>
             </div>
           </div>
         )}
@@ -130,7 +133,7 @@ export default function KPIAnalyticsModal({
           <div className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 p-5 rounded-2xl flex items-center justify-between">
               <div>
-                <div className="text-xs text-blue-700 font-bold mb-1">إجمالي تحصيل اشتراكات الدوري</div>
+                <div className="text-xs text-blue-700 font-bold mb-1">إجمالي تحصيل اشتراكات الدوري الفعلي</div>
                 <div className="text-3xl font-extrabold text-blue-900 font-tabular">{formatMoney(data.leagueRevenue)} <span className="text-sm font-bold">ج.م</span></div>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl font-bold shadow-md">
@@ -140,12 +143,33 @@ export default function KPIAnalyticsModal({
 
             <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 text-xs text-slate-600 leading-relaxed">
               <h4 className="font-bold text-slate-900 text-sm">💡 كيفية احتساب اشتراكات الدوري:</h4>
-              <p>• يُمثل هذا المبلغ الإيراد المحصل من رسوم اشتراكات البطولات والمجموعات الدورية المسجلة للاعبي الدوري خلال الشهر.</p>
+              <p>• يُمثل هذا المبلغ الإيراد المحصل المباشر من رسوم اشتراكات البطولات والمجموعات الدورية المسجلة للاعبي الدوري خلال الشهر.</p>
             </div>
           </div>
         )}
 
-        {/* 4. Expenses & Salaries KPI */}
+        {/* 4. Kits & Apparel KPI */}
+        {kpiType === 'kits' && (
+          <div className="space-y-4">
+            <div className="bg-purple-50 border border-purple-200 p-5 rounded-2xl flex items-center justify-between">
+              <div>
+                <div className="text-xs text-purple-700 font-bold mb-1">إجمالي مبيعات وإيرادات الأطقم واللبس</div>
+                <div className="text-3xl font-extrabold text-purple-900 font-tabular">{formatMoney(kitsRev)} <span className="text-sm font-bold">ج.م</span></div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center text-2xl font-bold shadow-md">
+                👕
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 text-xs text-slate-600 leading-relaxed">
+              <h4 className="font-bold text-slate-900 text-sm">💡 تحليلات الأطقم والملابس الرياضية:</h4>
+              <p>• يُسجل هذا المبلغ من إجمالي مبيعات الملابس والأطقم المسلمة والمبيعات الفورية للأكاديمية خلال شهر <strong>{formatMonth(month)}</strong>.</p>
+              <p>• تُضاف مبيعات الأطقم تلقائياً إلى مجموع إيرادات الأكاديمية لتدخل في حساب صافي الربح النهائي.</p>
+            </div>
+          </div>
+        )}
+
+        {/* 5. Expenses & Salaries KPI */}
         {kpiType === 'expenses_salaries' && (
           <div className="space-y-4">
             <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl flex items-center justify-between">

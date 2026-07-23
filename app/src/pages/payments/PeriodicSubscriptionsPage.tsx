@@ -269,17 +269,53 @@ export default function PeriodicSubscriptionsPage() {
         }
         toast('success', 'تم تعديل بيانات اللاعب بنجاح');
       } else {
-        const { error } = await supabase.from('players').insert({
+        const { data: insertedLeaguePlayer, error } = await supabase.from('players').insert({
           ...payload,
           status: 'active',
           fee_amount: 0,
-        });
+        }).select().single();
 
         if (error) {
           toast('error', `خطأ أثناء إضافة اللاعب: ${error.message}`);
           return;
         }
-        toast('success', 'تم إضافة اللاعب بنجاح للدوري');
+
+        // ⚡ AUTO PAYMENT FOR NEW LEAGUE PLAYER
+        const periodicFee = Number(payload.fee_amount_periodic || 1200);
+        if (periodicFee > 0 && insertedLeaguePlayer) {
+          const regDateStr = payload.registration_date || new Date().toISOString().split('T')[0];
+          const regDate = new Date(regDateStr);
+          const regDay = regDate.getDate();
+          let targetYear = regDate.getFullYear();
+          let targetMonthNum = regDate.getMonth() + 1;
+
+          const targetBranch = branches.find(b => b.id === payload.branch_id);
+          const closingDay = targetBranch?.closing_day || (targetBranch?.name?.includes('الثلاثي') ? 20 : 30);
+
+          if (regDay > closingDay) {
+            targetMonthNum += 1;
+            if (targetMonthNum > 12) {
+              targetMonthNum = 1;
+              targetYear += 1;
+            }
+          }
+
+          const periodCovered = `${targetYear}-${String(targetMonthNum).padStart(2, '0')}`;
+
+          await supabase.from('payments').insert({
+            player_id: insertedLeaguePlayer.id,
+            branch_id: insertedLeaguePlayer.branch_id,
+            amount: periodicFee,
+            payment_date: regDateStr,
+            method: 'cash',
+            period_covered: periodCovered,
+            notes: `تسديد تلقائي لاشتراك بداية لاعب الدوري لشهر ${formatMonth(periodCovered)}`,
+          });
+
+          toast('success', `تم إضافة اللاعب وتسديد اشتراك الدوري لشهر (${formatMonth(periodCovered)}) تلقائياً ✅`);
+        } else {
+          toast('success', 'تم إضافة اللاعب بنجاح للدوري');
+        }
       }
       setShowPlayerModal(false);
       setEditingPlayer(null);

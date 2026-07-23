@@ -16,6 +16,7 @@ interface DashboardStats {
   totalDebt: number;
   totalCollectedMonthly: number;
   totalCollectedPeriodic: number;
+  totalKitsSales: number;
   expensesAndSalaries: number;
   netProfit: number;
   revenueTrend: any[];
@@ -49,19 +50,36 @@ export default function OwnerDashboard() {
     try {
       const branchFilter = selectedBranchId ? selectedBranchId : null;
 
-
+      const startOfMonth = `${selectedMonth}-01`;
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      const endOfMonth = `${selectedMonth}-${lastDay < 10 ? '0' + lastDay : lastDay}`;
 
       let playersQuery = supabase.from('players').select('id', { count: 'exact', head: true }).eq('status', 'active');
-      if (branchFilter) {
-        playersQuery = playersQuery.eq('branch_id', branchFilter);
-      }
+      if (branchFilter) playersQuery = playersQuery.eq('branch_id', branchFilter);
+
+      let payQuery = supabase
+        .from('payments')
+        .select('amount, player_id, branch_id, players(payment_type, fee_amount_periodic)')
+        .gte('payment_date', startOfMonth)
+        .lte('payment_date', endOfMonth);
+      if (branchFilter) payQuery = payQuery.eq('branch_id', branchFilter);
+
+      let kitQuery = supabase
+        .from('kits_sales')
+        .select('total_amount, branch_id')
+        .gte('created_at', `${startOfMonth}T00:00:00`)
+        .lte('created_at', `${endOfMonth}T23:59:59`);
+      if (branchFilter) kitQuery = kitQuery.eq('branch_id', branchFilter);
 
       const [
         { count: playersCount },
         { data: branchData },
         { data: trendData },
         { data: recentPlayersData },
-        { data: rawProfitData }
+        { data: rawProfitData },
+        { data: monthPayments },
+        { data: monthKits }
       ] = await Promise.all([
         playersQuery,
         supabase.rpc('get_monthly_branch_stats', { p_month: selectedMonth }),
@@ -71,11 +89,12 @@ export default function OwnerDashboard() {
           .select('id, full_name, branch_id, status, created_at, branches(name)')
           .order('created_at', { ascending: false })
           .limit(5),
-        supabase.rpc('rpc_net_profit', { p_branch_id: branchFilter, p_month: selectedMonth })
+        supabase.rpc('rpc_net_profit', { p_branch_id: branchFilter, p_month: selectedMonth }),
+        payQuery,
+        kitQuery
       ]);
 
       setProfitData((rawProfitData as NetProfit[]) || []);
-
       let activePlayers = playersCount || 0;
 
       let branchBreakdown = branchData || [];
@@ -83,27 +102,29 @@ export default function OwnerDashboard() {
         branchBreakdown = branchBreakdown.filter((b: any) => b.branch_id === branchFilter);
       }
 
-      const totalNetProfit = branchBreakdown.reduce((sum: number, b: any) => sum + Number(b.net_profit || 0), 0);
       const totalExpensesAndSalaries = branchBreakdown.reduce(
         (sum: number, b: any) => sum + Number(b.total_expenses || 0) + Number(b.salaries_paid || 0),
         0
       );
       
-      const { data: debtListData, error: debtListError } = await supabase.rpc('rpc_debt_list', { p_branch_id: branchFilter });
-      if (debtListError) {
-        console.error('OwnerDashboard: error loading rpc_debt_list:', debtListError);
-      }
+      const { data: debtListData } = await supabase.rpc('rpc_debt_list', { p_branch_id: branchFilter });
       const totalDebt = debtListData ? debtListData.reduce((sum: number, d: any) => sum + (Number(d.debt) > 0 ? Number(d.debt) : 0), 0) : 0;
 
-      // Expected Subscription Fees — SEPARATED monthly vs periodic
-      let pq = supabase.from('players').select('fee_amount, fee_amount_periodic').eq('status', 'active');
-      if (branchFilter) pq = pq.eq('branch_id', branchFilter);
-      const { data: playersListData, error: playersListError } = await pq;
-      if (playersListError) {
-        console.error('OwnerDashboard: error loading active players fees:', playersListError);
-      }
-      const totalCollectedMonthly = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0), 0) : 0;
-      const totalCollectedPeriodic = playersListData ? playersListData.reduce((sum: number, p: any) => sum + Number(p.fee_amount_periodic || 0), 0) : 0;
+      // ⚡ CALCULATE REAL ACCURATE MONETARY TOTALS FROM DB
+      let totalCollectedMonthly = 0;
+      let totalCollectedPeriodic = 0;
+
+      (monthPayments || []).forEach((p: any) => {
+        const isLeague = p.players?.payment_type === 'quarterly' || Number(p.players?.fee_amount_periodic || 0) > 0;
+        if (isLeague) {
+          totalCollectedPeriodic += Number(p.amount || 0);
+        } else {
+          totalCollectedMonthly += Number(p.amount || 0);
+        }
+      });
+
+      const totalKitsSales = (monthKits || []).reduce((sum: number, k: any) => sum + Number(k.total_amount || 0), 0);
+      const netProfit = (totalCollectedMonthly + totalCollectedPeriodic + totalKitsSales) - totalExpensesAndSalaries;
 
       let recent = recentPlayersData || [];
       if (branchFilter) {
@@ -115,8 +136,9 @@ export default function OwnerDashboard() {
         totalDebt,
         totalCollectedMonthly,
         totalCollectedPeriodic,
+        totalKitsSales,
         expensesAndSalaries: totalExpensesAndSalaries,
-        netProfit: totalNetProfit,
+        netProfit,
         revenueTrend: trendData || [],
         recentPlayers: recent,
       });
@@ -249,7 +271,7 @@ export default function OwnerDashboard() {
       </div>
 
       {/* KPI Cards Row 2 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Periodic (League) Subscriptions */}
         <div 
           onClick={() => setActiveKpiModal('league_sub')}
@@ -271,6 +293,31 @@ export default function OwnerDashboard() {
             <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي اشتراكات الدوري فقط</span>
             <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 flex items-center gap-1 font-arabic">
               🔍 تفاصيل الدوري
+            </span>
+          </div>
+        </div>
+
+        {/* Kits & Apparel Sales */}
+        <div 
+          onClick={() => setActiveKpiModal('kits')}
+          className="bg-white border border-slate-200 border-r-4 border-r-purple-600 p-6 flex flex-col justify-between rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-0.5"
+        >
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-slate-500 font-bold text-sm font-arabic tracking-wide group-hover:text-purple-700 transition-colors">مبيعات الأطقم واللبس</span>
+            <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
+              👕
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-4xl font-extrabold text-purple-800 font-tabular">
+              {stats.totalKitsSales.toLocaleString('en-US')}
+            </h3>
+            <span className="text-sm font-bold text-purple-700 font-arabic">ج.م</span>
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 font-arabic">إجمالي مبيعات أطقم الأكاديمية</span>
+            <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 flex items-center gap-1 font-arabic">
+              🔍 تحليل الأطقم
             </span>
           </div>
         </div>
@@ -446,6 +493,7 @@ export default function OwnerDashboard() {
           activePlayersCount: stats.activePlayers,
           monthlyRevenue: stats.totalCollectedMonthly,
           leagueRevenue: stats.totalCollectedPeriodic,
+          kitsRevenue: stats.totalKitsSales,
           totalExpenses: profitData.reduce((s, r) => s + Number(r.total_expenses || 0), 0),
           totalSalaries: profitData.reduce((s, r) => s + Number(r.salaries_paid || 0), 0),
           recentPlayers: stats.recentPlayers,
