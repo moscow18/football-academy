@@ -7,7 +7,7 @@ import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
-import { CheckCircle2, XCircle, Search, Check, PauseCircle, Calendar } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, Check, PauseCircle, Calendar, Building2 } from 'lucide-react';
 
 interface SimpleMonthPlayer {
   id: string;
@@ -26,7 +26,7 @@ interface SimpleMonthPlayer {
 }
 
 export default function DebtsPage() {
-  const { branchFilter } = useBranch();
+  const { branchFilter, branches } = useBranch();
   const { toast } = useToast();
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
@@ -43,13 +43,14 @@ export default function DebtsPage() {
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState<'cash' | 'transfer'>('cash');
   const [isSubmittingPay, setIsSubmittingPay] = useState(false);
+  const [isBulkBranchSubmitting, setIsBulkBranchSubmitting] = useState(false);
 
   const loadMonthData = useCallback(async () => {
     if (initialLoading) setLoading(true);
     try {
       const branchId = branchFilter || null;
 
-      // 1. Fetch active monthly players
+      // 1. Fetch active monthly players ONLY (status = active)
       let pQuery = supabase
         .from('players')
         .select('id, full_name, player_code, branch_id, fee_amount, phone, parent_phone, status, groups(name), branches(name)')
@@ -60,7 +61,6 @@ export default function DebtsPage() {
 
       // 2. Fetch payments for the selected month
       const startOfMonth = `${selectedMonth}-01`;
-      // calculate last day of selected month
       const [y, m] = selectedMonth.split('-').map(Number);
       const lastDay = new Date(y, m, 0).getDate();
       const endOfMonth = `${selectedMonth}-${lastDay < 10 ? '0' + lastDay : lastDay}`;
@@ -131,14 +131,17 @@ export default function DebtsPage() {
     .filter((p) => p.is_paid)
     .reduce((s, p) => s + p.fee_amount, 0);
 
-  // Open 1-Click Pay Modal
+  // Current branch name
+  const selectedBranchObj = branches.find((b) => b.id === branchFilter);
+  const currentBranchTitle = selectedBranchObj ? selectedBranchObj.name : 'جميع الفروع';
+
+  // 1-Click Pay Single Player
   const openPayModal = (player: SimpleMonthPlayer) => {
     setPlayerToPay(player);
     setPayAmount(String(player.fee_amount || 0));
     setPayMethod('cash');
   };
 
-  // Submit 1-Click Payment
   const handleConfirmPay = async () => {
     if (!playerToPay) return;
     const amountNum = parseFloat(payAmount);
@@ -172,9 +175,46 @@ export default function DebtsPage() {
     }
   };
 
-  // Freeze / Suspend Player
+  // Bulk Settle FOR THE SELECTED BRANCH ONLY
+  const handleBulkSettleBranch = async () => {
+    const unpaidInBranch = filteredData.filter((p) => !p.is_paid);
+    if (unpaidInBranch.length === 0) {
+      toast('info', `جميع لاعبي ${currentBranchTitle} مسددين بالفعل لهذا الشهر ✅`);
+      return;
+    }
+
+    if (!window.confirm(`هل أنت متأكد من تسديد اشتراك شهر (${formatMonth(selectedMonth)}) لـ ${unpaidInBranch.length} لاعب في (${currentBranchTitle}) دفعة واحدة؟`)) {
+      return;
+    }
+
+    setIsBulkBranchSubmitting(true);
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const newPayments = unpaidInBranch.map((p) => ({
+        player_id: p.id,
+        branch_id: p.branch_id,
+        amount: p.fee_amount,
+        payment_date: todayStr,
+        method: 'cash',
+        period_covered: selectedMonth,
+        notes: `سداد جماعي لفرع ${currentBranchTitle} لشهر ${formatMonth(selectedMonth)}`,
+      }));
+
+      const { error } = await supabase.from('payments').insert(newPayments);
+      if (error) throw error;
+
+      toast('success', `تم تسديد اشتراك شهر ${formatMonth(selectedMonth)} لفرع (${currentBranchTitle}) لـ ${unpaidInBranch.length} لاعب بنجاح ✅`);
+      loadMonthData();
+    } catch (err: any) {
+      toast('error', 'حدث خطأ أثناء التسديد الجماعي للفرع: ' + err.message);
+    } finally {
+      setIsBulkBranchSubmitting(false);
+    }
+  };
+
+  // Freeze / Suspend Player (Completely removes him from list and sets status = suspended)
   const handleFreezePlayer = async (player: SimpleMonthPlayer) => {
-    if (!window.confirm(`هل أنت متأكد من تجميد حساب اللاعب (${player.full_name}) وتحويل حالته إلى "موقوف"؟`)) return;
+    if (!window.confirm(`هل أنت متأكد من تجميد حساب اللاعب (${player.full_name}) وإيقاف جميع اشتراكاته فوراً؟\n\nلن يظهر هذا اللاعب في المديونيات أو التحصيل بعد الآن.`)) return;
 
     try {
       const { error } = await supabase
@@ -184,7 +224,9 @@ export default function DebtsPage() {
 
       if (error) throw error;
 
-      toast('success', `تم تجميد حساب اللاعب (${player.full_name}) بنجاح ⏸️`);
+      toast('success', `تم تجميد حساب اللاعب (${player.full_name}) وإيقاف جميع اشتراكاته بنجاح ⏸️`);
+      // Instantly remove player from active list
+      setPlayersList((prev) => prev.filter((p) => p.id !== player.id));
       loadMonthData();
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء تجميد اللاعب: ' + err.message);
@@ -200,23 +242,35 @@ export default function DebtsPage() {
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 font-arabic flex items-center gap-2">
-            ⚽ متابعة سداد الاشتراكات الشهرية (الشهر بشهره)
+            ⚽ متابعة سداد الاشتراكات الشهرية ({currentBranchTitle})
           </h1>
           <p className="text-slate-500 text-sm font-medium mt-1 font-arabic">
             جدول ميسّر لمتابعة سداد كل لاعب لشهر <strong className="text-emerald-700 font-tabular">{formatMonth(selectedMonth)}</strong> بنقرة واحدة ✅
           </p>
         </div>
 
-        {/* Month Selector */}
-        <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border border-slate-200 rounded-xl shadow-2xs self-start sm:self-auto font-[Cairo]">
-          <Calendar size={16} className="text-emerald-600" />
-          <span className="text-slate-500 font-bold text-xs font-arabic">اختر الشهر:</span>
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="border-none bg-transparent font-tabular font-bold text-slate-800 focus:outline-none cursor-pointer focus:ring-0 text-sm font-[Cairo]"
-          />
+        {/* Month Selector & Branch Settle Button */}
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto font-[Cairo]">
+          <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border border-slate-200 rounded-xl shadow-2xs">
+            <Calendar size={16} className="text-emerald-600" />
+            <span className="text-slate-500 font-bold text-xs font-arabic">اختر الشهر:</span>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="border-none bg-transparent font-tabular font-bold text-slate-800 focus:outline-none cursor-pointer focus:ring-0 text-sm font-[Cairo]"
+            />
+          </div>
+
+          <button
+            onClick={handleBulkSettleBranch}
+            disabled={isBulkBranchSubmitting}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer font-arabic disabled:opacity-50 hover:scale-105 active:scale-95"
+            title={`تسديد الشهر كاملاً لجميع لاعبي ${currentBranchTitle} فقط`}
+          >
+            <Building2 size={16} />
+            <span>تسديد شهر ({currentBranchTitle}) بالكامل ✅</span>
+          </button>
         </div>
       </div>
 
@@ -373,8 +427,8 @@ export default function DebtsPage() {
 
                         <button
                           onClick={() => handleFreezePlayer(p)}
-                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                          title="تجميد الاشتراك لعدم الحضور"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="تجميد وتوقيف الاشتراك نهائياً"
                         >
                           <PauseCircle size={17} />
                         </button>
