@@ -5,41 +5,33 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-async function inspectLeaguePlayers() {
-  console.log('--- Inspecting Players & Payments for League ---');
-  
-  // 1. Fetch all players with fee_amount_periodic > 0 or payment_type = quarterly
-  const { data: players, error: pErr } = await supabase
-    .from('players')
-    .select('id, full_name, player_code, branch_id, fee_amount_periodic, payment_type, registration_date')
-    .or('payment_type.eq.quarterly,fee_amount_periodic.gt.0');
+async function checkLeaguePayments() {
+  const { data: payments } = await supabase
+    .from('payments')
+    .select('id, amount, period_covered, player_id, players(id, full_name, payment_type, fee_amount_periodic)')
+    .eq('period_covered', '2026-07')
+    .limit(100);
 
-  if (pErr) {
-    console.error('Error fetching league players:', pErr);
-    return;
-  }
+  console.log('Sample Payments for July 2026:', payments?.length);
+  if (payments && payments.length > 0) {
+    let leagueCount = 0;
+    let monthlyCount = 0;
+    let leagueTotal = 0;
 
-  console.log(`Found ${players ? players.length : 0} league players.`);
+    payments.forEach(p => {
+      const pObj = Array.isArray(p.players) ? p.players[0] : p.players;
+      const isLeague = pObj?.payment_type === 'quarterly' || Number(pObj?.fee_amount_periodic || 0) > 0;
+      if (isLeague) {
+        leagueCount++;
+        leagueTotal += Number(p.amount || 0);
+      } else {
+        monthlyCount++;
+      }
+    });
 
-  if (players && players.length > 0) {
-    const playerIds = players.map(p => p.id);
-    const { data: payments, error: payErr } = await supabase
-      .from('payments')
-      .select('id, player_id, amount, payment_date, period_covered, notes')
-      .in('player_id', playerIds);
-
-    console.log(`Found ${payments ? payments.length : 0} payments for league players.`);
-    
-    // Check payments per player
-    const paidPlayerIds = new Set((payments || []).map(p => p.player_id));
-    console.log(`Unique league players with payments: ${paidPlayerIds.size} / ${players.length}`);
-    
-    const unpaidPlayers = players.filter(p => !paidPlayerIds.has(p.id));
-    console.log(`Unpaid league players count: ${unpaidPlayers.length}`);
-    if (unpaidPlayers.length > 0) {
-      console.log('Sample unpaid league players:', unpaidPlayers.slice(0, 5));
-    }
+    console.log(`July sample stats: ${monthlyCount} monthly payments, ${leagueCount} league payments totaling ${leagueTotal} EGP`);
+    console.log('First payment sample player object:', payments[0]?.players);
   }
 }
 
-inspectLeaguePlayers();
+checkLeaguePayments();

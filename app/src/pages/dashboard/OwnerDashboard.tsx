@@ -60,7 +60,7 @@ export default function OwnerDashboard() {
 
       let payQuery = supabase
         .from('payments')
-        .select('amount, player_id, branch_id, period_covered, players(payment_type, fee_amount_periodic)')
+        .select('amount, notes, player_id, branch_id, period_covered, players(payment_type, fee_amount_periodic)')
         .eq('period_covered', selectedMonth);
       if (branchFilter) payQuery = payQuery.eq('branch_id', branchFilter);
 
@@ -114,7 +114,14 @@ export default function OwnerDashboard() {
       let totalCollectedPeriodic = 0;
 
       (monthPayments || []).forEach((p: any) => {
-        const isLeague = p.players?.payment_type === 'quarterly' || Number(p.players?.fee_amount_periodic || 0) > 0;
+        const playerObj = Array.isArray(p.players) ? p.players[0] : p.players;
+        const notes = String(p.notes || '').toLowerCase();
+        const isLeague = 
+          playerObj?.payment_type === 'quarterly' || 
+          Number(playerObj?.fee_amount_periodic || 0) > 0 ||
+          notes.includes('دوري') ||
+          notes.includes('الدوري');
+
         if (isLeague) {
           totalCollectedPeriodic += Number(p.amount || 0);
         } else {
