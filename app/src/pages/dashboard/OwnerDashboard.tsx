@@ -61,17 +61,22 @@ export default function OwnerDashboard() {
       let payQuery = supabase
         .from('payments')
         .select('amount, notes, player_id, branch_id, period_covered, players(payment_type, fee_amount_periodic)')
-        .eq('period_covered', selectedMonth);
+        .eq('period_covered', selectedMonth)
+        .limit(10000);
+      if (branchFilter) payQuery = payQuery.eq('branch_id', branchFilter);
+
       let kitQuery = supabase
         .from('kits_sales')
         .select('total_amount, branch_id')
         .gte('created_at', `${startOfMonth}T00:00:00`)
-        .lte('created_at', `${endOfMonth}T23:59:59`);
+        .lte('created_at', `${endOfMonth}T23:59:59`)
+        .limit(10000);
       if (branchFilter) kitQuery = kitQuery.eq('branch_id', branchFilter);
 
       let leaguePlayersQuery = supabase
         .from('players')
-        .select('id, payment_type, fee_amount_periodic');
+        .select('id, payment_type, fee_amount_periodic')
+        .limit(10000);
       if (branchFilter) leaguePlayersQuery = leaguePlayersQuery.eq('branch_id', branchFilter);
 
       const [
