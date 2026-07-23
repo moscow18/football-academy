@@ -58,12 +58,20 @@ export default function OwnerDashboard() {
       let playersQuery = supabase.from('players').select('id', { count: 'exact', head: true }).eq('status', 'active');
       if (branchFilter) playersQuery = playersQuery.eq('branch_id', branchFilter);
 
-      let payQuery = supabase
+      let payQuery1 = supabase
         .from('payments')
-        .select('amount, notes, player_id, branch_id, period_covered, players(payment_type, fee_amount_periodic)')
+        .select('id, amount, notes, player_id, branch_id, payment_date, period_covered, players(payment_type, fee_amount_periodic)')
         .eq('period_covered', selectedMonth)
         .limit(10000);
-      if (branchFilter) payQuery = payQuery.eq('branch_id', branchFilter);
+      if (branchFilter) payQuery1 = payQuery1.eq('branch_id', branchFilter);
+
+      let payQuery2 = supabase
+        .from('payments')
+        .select('id, amount, notes, player_id, branch_id, payment_date, period_covered, players(payment_type, fee_amount_periodic)')
+        .gte('payment_date', startOfMonth)
+        .lte('payment_date', endOfMonth)
+        .limit(10000);
+      if (branchFilter) payQuery2 = payQuery2.eq('branch_id', branchFilter);
 
       let kitQuery = supabase
         .from('kits_sales')
@@ -85,7 +93,8 @@ export default function OwnerDashboard() {
         { data: trendData },
         { data: recentPlayersData },
         { data: rawProfitData },
-        { data: monthPayments },
+        { data: monthPayments1 },
+        { data: monthPayments2 },
         { data: monthKits },
         { data: allPlayersForType }
       ] = await Promise.all([
@@ -98,7 +107,8 @@ export default function OwnerDashboard() {
           .order('created_at', { ascending: false })
           .limit(5),
         supabase.rpc('rpc_net_profit', { p_branch_id: branchFilter, p_month: selectedMonth }),
-        payQuery,
+        payQuery1,
+        payQuery2,
         kitQuery,
         leaguePlayersQuery
       ]);
@@ -127,11 +137,17 @@ export default function OwnerDashboard() {
         }
       });
 
+      // Merge payments to eliminate duplicates
+      const paymentMap = new Map();
+      (monthPayments1 || []).forEach((p: any) => paymentMap.set(p.id, p));
+      (monthPayments2 || []).forEach((p: any) => paymentMap.set(p.id, p));
+      const combinedPayments = Array.from(paymentMap.values());
+
       // ⚡ CALCULATE REAL ACCURATE MONETARY TOTALS FROM DB
       let totalCollectedMonthly = 0;
       let totalCollectedPeriodic = 0;
 
-      (monthPayments || []).forEach((p: any) => {
+      combinedPayments.forEach((p: any) => {
         const playerObj = Array.isArray(p.players) ? p.players[0] : p.players;
         const notes = String(p.notes || '').toLowerCase();
         const isLeague = 
