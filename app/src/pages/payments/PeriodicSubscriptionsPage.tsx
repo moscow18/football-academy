@@ -10,7 +10,7 @@ import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import type { DebtItem, Group } from '../../lib/types';
-import { Plus, Users, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Users, Edit2, Trash2, RotateCcw } from 'lucide-react';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 
 const DAYS_OF_WEEK = [
@@ -445,6 +445,27 @@ export default function PeriodicSubscriptionsPage() {
     XLSX.writeFile(wb, `league_players_${new Date().toISOString().split('T')[0]}.xlsx`);
   }
 
+  const rollbackBulkSettlement = async () => {
+    if (!confirm('هل أنت متأكد من إلغاء وحذف كافة دفعات "تسوية الشهور القديمة" التي تم تسجيلها آلياً بالخطأ اليوم؟\n\nسيتم استعادة المديونيات الحقيقية لجميع لاعبي الدوري والاشتراكات فوراً.')) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('payments')
+        .delete()
+        .or('notes.ilike.%تصفية الشهور القديمة%,notes.ilike.%تسوية الشهور القديمة%');
+
+      if (error) throw error;
+
+      toast('success', 'تم التراجع عن التسوية التلقائية وحذف جميع الدفعات المسجلة بالخطأ بنجاح! 🗑️');
+      loadData();
+    } catch (err: any) {
+      toast('error', 'حدث خطأ أثناء التراجع: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (initialLoading) return <PageLoading />;
 
   return (
@@ -459,6 +480,13 @@ export default function PeriodicSubscriptionsPage() {
           <p className="text-slate-500 text-sm mt-1 font-arabic">إدارة لاعبي الدوري والفرق وتصدير البيانات</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={rollbackBulkSettlement}
+            className="py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm transition-all cursor-pointer shadow-md flex items-center gap-1.5 font-arabic hover:-translate-y-0.5"
+            title="إلغاء وحذف كافة الدفعات المسجلة بالخطأ عند الضغط على تسوية الجميع"
+          >
+            <RotateCcw size={16} /> تراجع عن تسوية الجميع بالخطأ
+          </button>
           <button 
             onClick={openAddPlayerForm} 
             className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all cursor-pointer shadow-md flex items-center gap-1.5 font-arabic hover:-translate-y-0.5 active:translate-y-0"
