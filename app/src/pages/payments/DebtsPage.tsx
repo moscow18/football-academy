@@ -38,12 +38,13 @@ export default function DebtsPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 1-Click Pay Modal State
+  // Modals
   const [playerToPay, setPlayerToPay] = useState<SimpleMonthPlayer | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState<'cash' | 'transfer'>('cash');
   const [isSubmittingPay, setIsSubmittingPay] = useState(false);
   const [isBulkBranchSubmitting, setIsBulkBranchSubmitting] = useState(false);
+  const [showBranchSettleModal, setShowBranchSettleModal] = useState(false);
 
   const loadMonthData = useCallback(async () => {
     if (initialLoading) setLoading(true);
@@ -175,35 +176,38 @@ export default function DebtsPage() {
     }
   };
 
-  // Bulk Settle FOR THE SELECTED BRANCH ONLY
-  const handleBulkSettleBranch = async () => {
-    const unpaidInBranch = filteredData.filter((p) => !p.is_paid);
-    if (unpaidInBranch.length === 0) {
-      toast('info', `جميع لاعبي ${currentBranchTitle} مسددين بالفعل لهذا الشهر ✅`);
-      return;
-    }
-
-    if (!window.confirm(`هل أنت متأكد من تسديد اشتراك شهر (${formatMonth(selectedMonth)}) لـ ${unpaidInBranch.length} لاعب في (${currentBranchTitle}) دفعة واحدة؟`)) {
-      return;
-    }
-
+  // Bulk Settle FOR A SPECIFIC TARGET BRANCH
+  const settleSpecificBranch = async (targetBranchId: string, targetBranchName: string) => {
     setIsBulkBranchSubmitting(true);
     try {
+      const unpaidPlayers = playersList.filter((p) => p.branch_id === targetBranchId && !p.is_paid);
+      if (unpaidPlayers.length === 0) {
+        toast('info', `جميع لاعبي فرع (${targetBranchName}) مسددين بالفعل لهذا الشهر ✅`);
+        setShowBranchSettleModal(false);
+        return;
+      }
+
+      if (!window.confirm(`هل أنت متأكد من تسديد اشتراك شهر (${formatMonth(selectedMonth)}) لجميع لاعبي فرع (${targetBranchName}) البالغ عددهم ${unpaidPlayers.length} لاعب؟`)) {
+        setIsBulkBranchSubmitting(false);
+        return;
+      }
+
       const todayStr = new Date().toISOString().split('T')[0];
-      const newPayments = unpaidInBranch.map((p) => ({
+      const newPayments = unpaidPlayers.map((p) => ({
         player_id: p.id,
         branch_id: p.branch_id,
         amount: p.fee_amount,
         payment_date: todayStr,
         method: 'cash',
         period_covered: selectedMonth,
-        notes: `سداد جماعي لفرع ${currentBranchTitle} لشهر ${formatMonth(selectedMonth)}`,
+        notes: `سداد جماعي لفرع ${targetBranchName} لشهر ${formatMonth(selectedMonth)}`,
       }));
 
       const { error } = await supabase.from('payments').insert(newPayments);
       if (error) throw error;
 
-      toast('success', `تم تسديد اشتراك شهر ${formatMonth(selectedMonth)} لفرع (${currentBranchTitle}) لـ ${unpaidInBranch.length} لاعب بنجاح ✅`);
+      toast('success', `تم تسديد اشتراك شهر ${formatMonth(selectedMonth)} لجميع لاعبي فرع (${targetBranchName}) لـ ${unpaidPlayers.length} لاعب بنجاح ✅`);
+      setShowBranchSettleModal(false);
       loadMonthData();
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء التسديد الجماعي للفرع: ' + err.message);
@@ -212,7 +216,16 @@ export default function DebtsPage() {
     }
   };
 
-  // Freeze / Suspend Player (Completely removes him from list and sets status = suspended)
+  const handleHeaderBranchSettleClick = () => {
+    if (branchFilter) {
+      const bObj = branches.find((b) => b.id === branchFilter);
+      settleSpecificBranch(branchFilter, bObj ? bObj.name : 'الفرع المحدد');
+    } else {
+      setShowBranchSettleModal(true);
+    }
+  };
+
+  // Freeze / Suspend Player
   const handleFreezePlayer = async (player: SimpleMonthPlayer) => {
     if (!window.confirm(`هل أنت متأكد من تجميد حساب اللاعب (${player.full_name}) وإيقاف جميع اشتراكاته فوراً؟\n\nلن يظهر هذا اللاعب في المديونيات أو التحصيل بعد الآن.`)) return;
 
@@ -225,7 +238,6 @@ export default function DebtsPage() {
       if (error) throw error;
 
       toast('success', `تم تجميد حساب اللاعب (${player.full_name}) وإيقاف جميع اشتراكاته بنجاح ⏸️`);
-      // Instantly remove player from active list
       setPlayersList((prev) => prev.filter((p) => p.id !== player.id));
       loadMonthData();
     } catch (err: any) {
@@ -263,13 +275,13 @@ export default function DebtsPage() {
           </div>
 
           <button
-            onClick={handleBulkSettleBranch}
+            onClick={handleHeaderBranchSettleClick}
             disabled={isBulkBranchSubmitting}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer font-arabic disabled:opacity-50 hover:scale-105 active:scale-95"
-            title={`تسديد الشهر كاملاً لجميع لاعبي ${currentBranchTitle} فقط`}
+            title="تسديد شهر لفرع معين بنقرة واحدة"
           >
             <Building2 size={16} />
-            <span>تسديد شهر ({currentBranchTitle}) بالكامل ✅</span>
+            <span>تسديد شهر {branchFilter ? `(${currentBranchTitle})` : 'فرع محدد'} بالكامل ✅</span>
           </button>
         </div>
       </div>
@@ -492,6 +504,41 @@ export default function DebtsPage() {
               <option value="cash">💵 نقدي (كاش)</option>
               <option value="transfer">🏦 تحويل بنكي / فودافون كاش</option>
             </select>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Quick Branch Settle Modal */}
+      <Modal
+        isOpen={showBranchSettleModal}
+        onClose={() => setShowBranchSettleModal(false)}
+        title="🏢 تسديد شهر مالي لفرع محدد بنقرة واحدة"
+      >
+        <div className="space-y-4 font-[Cairo]">
+          <p className="text-slate-600 text-xs font-semibold">
+            اختر الفرع المراد تسديد جميع لاعبيه النشطين لشهر <strong className="text-emerald-700 font-tabular">{formatMonth(selectedMonth)}</strong> دفعة واحدة:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {branches.map((b) => {
+              const unpaidCountInB = playersList.filter((p) => p.branch_id === b.id && !p.is_paid).length;
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => settleSpecificBranch(b.id, b.name)}
+                  disabled={isBulkBranchSubmitting}
+                  className="p-4 bg-slate-50 hover:bg-emerald-50 border-2 border-slate-200 hover:border-emerald-500 rounded-2xl text-right transition-all cursor-pointer group flex flex-col justify-between gap-2"
+                >
+                  <div className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-800 flex items-center justify-between">
+                    <span>{b.name}</span>
+                    <Building2 size={18} className="text-emerald-600" />
+                  </div>
+                  <div className="text-xs text-slate-500 font-bold">
+                    غير المسددين: <span className="text-rose-600 font-tabular">{unpaidCountInB} لاعب</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </Modal>
