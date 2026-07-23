@@ -486,27 +486,42 @@ export default function PeriodicSubscriptionsPage() {
       return;
     }
 
-    if (!window.confirm(`هل أنت متأكد من تسديد اشتراك الدوري لجميع اللاعبين غير المسددين البالغ عددهم ${unpaidLeague.length} لاعب بنقرة واحدة؟`)) return;
+    if (!window.confirm(`هل أنت متأكد من تسديد اشتراك الدوري لجميع اللاعبين غير المسددين البالغ عددهم ${unpaidLeague.length} لاعب؟\n(اللاعبين المسجلين قبل يوم 20 يُسدد لهم شهر يوليو، والمسجلين بعد يوم 20 يُسدد لهم شهر أغسطس).`)) return;
 
     setLoading(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
       const currentMonth = todayStr.substring(0, 7);
 
-      const paymentRows = unpaidLeague.map(p => ({
-        player_id: p.player_id,
-        branch_id: p.branch_id,
-        amount: Number(p.debt_periodic || p.fee_amount_periodic || 1200),
-        payment_date: todayStr,
-        method: 'cash',
-        period_covered: currentMonth,
-        notes: `تسديد اشتراك الدوري آلياً لشهر ${formatMonth(currentMonth)}`
-      }));
+      const paymentRows = unpaidLeague.map(p => {
+        const regDateStr = p.last_payment_date || todayStr;
+        const regDate = new Date(regDateStr);
+        const regDay = regDate.getDate();
+
+        let periodCovered = currentMonth;
+        if (regDay > 20) {
+          const [y, m] = currentMonth.split('-').map(Number);
+          let nextM = m + 1;
+          let nextY = y;
+          if (nextM > 12) { nextM = 1; nextY++; }
+          periodCovered = `${nextY}-${String(nextM).padStart(2, '0')}`;
+        }
+
+        return {
+          player_id: p.player_id,
+          branch_id: p.branch_id,
+          amount: Number(p.debt_periodic || p.fee_amount_periodic || 1200),
+          payment_date: todayStr,
+          method: 'cash',
+          period_covered: periodCovered,
+          notes: `تسديد اشتراك الدوري آلياً لشهر ${formatMonth(periodCovered)} (تاريخ التسجيل يوم ${regDay})`
+        };
+      });
 
       const { error } = await supabase.from('payments').insert(paymentRows);
       if (error) throw error;
 
-      toast('success', `تم تسديد اشتراك الدوري لـ ${paymentRows.length} لاعب بنجاح ✅`);
+      toast('success', `تم تسديد اشتراك الدوري لـ ${paymentRows.length} لاعب حسب مرحلة يوم 20 بنجاح ✅`);
       loadData();
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء تسديد لاعبي الدوري: ' + err.message);

@@ -196,23 +196,42 @@ export default function DebtsPage() {
       toast('info', `جميع لاعبي فرع (${branchName}) مسددين بالفعل لشهر ${formatMonth(selectedMonth)} ✅`);
       return;
     }
-    if (!window.confirm(`⚠️ تسديد جماعي\n\nهل أنت متأكد من تسديد اشتراك شهر (${formatMonth(selectedMonth)}) لجميع لاعبي فرع (${branchName}) البالغ عددهم ${unpaidPlayers.length} لاعب دفعة واحدة؟`)) return;
+    if (!window.confirm(`⚠️ تسديد جماعي\n\nهل أنت متأكد من تسديد الاشتراكات لجميع لاعبي فرع (${branchName}) البالغ عددهم ${unpaidPlayers.length} لاعب؟\n(اللاعبين المسجلين قبل يوم التقفيل يُسدد لهم شهر يوليو، والمسجلين بعد يوم التقفيل يُسدد لهم شهر أغسطس).`)) return;
 
     setSettlingBranchId(branchId);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      const newPayments = unpaidPlayers.map(p => ({
-        player_id: p.id,
-        branch_id: p.branch_id,
-        amount: p.fee_amount,
-        payment_date: todayStr,
-        method: 'cash',
-        period_covered: selectedMonth,
-        notes: `سداد جماعي لفرع ${branchName} لشهر ${formatMonth(selectedMonth)}`,
-      }));
+      const targetBranch = branches.find(b => b.id === branchId);
+      const closingDay = targetBranch?.closing_day || (branchName.includes('الثلاثي') ? 20 : 30);
+
+      const newPayments = unpaidPlayers.map(p => {
+        const regDateStr = p.payment_date || todayStr;
+        const regDate = new Date(regDateStr);
+        const regDay = regDate.getDate();
+
+        let periodCovered = selectedMonth;
+        if (regDay > closingDay) {
+          const [y, m] = selectedMonth.split('-').map(Number);
+          let nextM = m + 1;
+          let nextY = y;
+          if (nextM > 12) { nextM = 1; nextY++; }
+          periodCovered = `${nextY}-${String(nextM).padStart(2, '0')}`;
+        }
+
+        return {
+          player_id: p.id,
+          branch_id: p.branch_id,
+          amount: p.fee_amount,
+          payment_date: todayStr,
+          method: 'cash',
+          period_covered: periodCovered,
+          notes: `سداد جماعي لفرع ${branchName} لشهر ${formatMonth(periodCovered)} (تاريخ التسجيل يوم ${regDay})`,
+        };
+      });
+
       const { error } = await supabase.from('payments').insert(newPayments);
       if (error) throw error;
-      toast('success', `✅ تم تسديد شهر ${formatMonth(selectedMonth)} لجميع لاعبي فرع (${branchName}) — ${unpaidPlayers.length} لاعب`);
+      toast('success', `✅ تم تسديد اشتراكات لاعبي فرع (${branchName}) — ${unpaidPlayers.length} لاعب حسب مرحلة يوم التقفيل (${closingDay}) بنجاح`);
       setTimeout(() => loadMonthData(), 800);
     } catch (err: any) {
       toast('error', 'حدث خطأ أثناء التسديد الجماعي: ' + err.message);
