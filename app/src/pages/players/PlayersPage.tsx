@@ -248,7 +248,18 @@ export default function PlayersPage() {
           notes: `تسديد تلقائي لاشتراك بداية اللاعب لشهر ${formatMonth(periodCovered)}`,
         });
 
-        toast('success', `تم إضافة اللاعب وتسجيل سداد شهر (${formatMonth(periodCovered)}) تلقائياً ✅`);
+        // ⚡ AUTO INVOICE FOR NEW PLAYER
+        const invNum = `INV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+        await supabase.from('invoices').insert({
+          invoice_number: invNum,
+          player_id: insertedPlayer.id,
+          branch_id: insertedPlayer.branch_id,
+          amount: feeAmount,
+          issued_date: regDateStr,
+          notes: `فاتورة تسديد تلقائي لاشتراك بداية اللاعب لشهر ${formatMonth(periodCovered)}`,
+        });
+
+        toast('success', `تم إضافة اللاعب وتسجيل سداد وإصدار فاتورة شهر (${formatMonth(periodCovered)}) تلقائياً ✅`);
       } else {
         toast('success', 'تم إضافة اللاعب بنجاح');
       }

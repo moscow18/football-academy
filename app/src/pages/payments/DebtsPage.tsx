@@ -277,8 +277,8 @@ export default function DebtsPage() {
       if (error) throw error;
 
       // ⚡ Auto-create invoices for all settled players
-      const invoiceRows = unpaidPlayers.map(p => ({
-        invoice_number: `INV-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      const invoiceRows = unpaidPlayers.map((p, idx) => ({
+        invoice_number: `INV-${Date.now()}-${idx + 1}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
         player_id: p.id,
         branch_id: p.branch_id,
         amount: p.fee_amount,

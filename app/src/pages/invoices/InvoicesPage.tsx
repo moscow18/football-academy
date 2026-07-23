@@ -8,34 +8,86 @@ import type { Invoice } from '../../lib/types';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
+import { FileText, Download } from 'lucide-react';
 
 export default function InvoicesPage() {
   const { branchFilter, branches } = useBranch();
   const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
     let q = supabase
       .from('invoices')
-      .select('*, players(full_name, player_code), branches(name)')
+      .select('*, players(full_name, player_code, phone, parent_phone), branches(name)')
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(1000);
     if (branchFilter) q = q.eq('branch_id', branchFilter);
-    const { data } = await q;
-    const mapped = (data || []).map((inv: Record<string, unknown>) => ({
+    const { data: invData } = await q;
+
+    // ⚡ Auto-sync missing invoices from payments table (when user is logged in)
+    let pq = supabase
+      .from('payments')
+      .select('id, player_id, branch_id, amount, payment_date, period_covered')
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (branchFilter) pq = pq.eq('branch_id', branchFilter);
+    const { data: payData } = await pq;
+
+    if (payData && payData.length > 0) {
+      const existingKeys = new Set(
+        (invData || []).map((inv: any) => `${inv.player_id}_${inv.issued_date}_${inv.amount}`)
+      );
+      const missing = payData.filter(
+        (p: any) => !existingKeys.has(`${p.player_id}_${p.payment_date}_${p.amount}`)
+      );
+
+      if (missing.length > 0) {
+        const invoiceRows = missing.map((p: any, idx: number) => ({
+          invoice_number: `INV-${Date.now()}-${idx + 1}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+          player_id: p.player_id,
+          branch_id: p.branch_id,
+          amount: p.amount,
+          issued_date: p.payment_date || new Date().toISOString().split('T')[0],
+          notes: `فاتورة سداد اشتراك شهر ${p.period_covered || ''}`,
+        }));
+
+        for (let i = 0; i < invoiceRows.length; i += 50) {
+          await supabase.from('invoices').insert(invoiceRows.slice(i, i + 50));
+        }
+
+        const { data: refreshedInv } = await q;
+        if (refreshedInv) {
+          const mapped = refreshedInv.map((inv: Record<string, unknown>) => ({
+            ...inv,
+            player_name: (inv.players as Record<string, string>)?.full_name,
+            player_code: (inv.players as Record<string, string>)?.player_code,
+            player_phone: (inv.players as Record<string, string>)?.phone,
+            player_parent_phone: (inv.players as Record<string, string>)?.parent_phone,
+            branch_name: (inv.branches as Record<string, string>)?.name,
+          })) as (Invoice & { player_phone?: string; player_parent_phone?: string; branch_name?: string })[];
+          setInvoices(mapped);
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
+    const mapped = (invData || []).map((inv: Record<string, unknown>) => ({
       ...inv,
       player_name: (inv.players as Record<string, string>)?.full_name,
       player_code: (inv.players as Record<string, string>)?.player_code,
-    })) as Invoice[];
+      player_phone: (inv.players as Record<string, string>)?.phone,
+      player_parent_phone: (inv.players as Record<string, string>)?.parent_phone,
+      branch_name: (inv.branches as Record<string, string>)?.name,
+    })) as (Invoice & { player_phone?: string; player_parent_phone?: string; branch_name?: string })[];
     setInvoices(mapped);
     setLoading(false);
   }, [branchFilter]);
 
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
-
-  // ⚡ Realtime: auto-refresh when invoices changes
   useRealtimeRefresh(['invoices'], loadInvoices);
 
   async function generatePDF(inv: Invoice) {
@@ -59,49 +111,125 @@ export default function InvoicesPage() {
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`invoice_${inv.invoice_number}.pdf`);
-      toast('success', 'تم تحميل الفاتورة بنجاح');
+      toast('success', 'تم تحميل الفاتورة بنجاح ✅');
     } catch (err) {
       console.error(err);
       toast('error', `حدث خطأ: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
+  // Filter invoices by search
+  const filteredInvoices = invoices.filter(inv => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const playerName = (inv.player_name || '').toLowerCase();
+    const playerCode = (inv.player_code || '').toLowerCase();
+    const phone = ((inv as any).player_phone || '').toLowerCase();
+    const parentPhone = ((inv as any).player_parent_phone || '').toLowerCase();
+    const invNum = (inv.invoice_number || '').toLowerCase();
+    return playerName.includes(q) || playerCode.includes(q) || phone.includes(q) || parentPhone.includes(q) || invNum.includes(q);
+  });
+
+  const totalAmount = filteredInvoices.reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+
   if (loading) return <PageLoading />;
 
   return (
-    <div>
-      <div className="text-sm text-slate-500 mb-4">
-        إجمالي: <strong>{invoices.length}</strong> فاتورة
+    <div className="space-y-6 animate-fade-in font-[Cairo] pb-12">
+
+      {/* Header Banner */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 flex items-center gap-2">
+            🧾 سجل الفواتير الرسمية
+          </h1>
+          <p className="text-slate-500 text-sm font-semibold mt-1">
+            جميع الفواتير التي تم إنشاؤها تلقائياً عند تسديد الاشتراكات
+          </p>
+        </div>
+        <div className="text-sm font-bold text-slate-500">
+          إجمالي: <span className="text-emerald-700 font-extrabold font-tabular">{filteredInvoices.length}</span> فاتورة
+        </div>
       </div>
 
-      {invoices.length === 0 ? (
-        <EmptyState icon="🧾" title="لا توجد فواتير" subtitle="سيتم إنشاء الفواتير تلقائياً عند تسجيل المدفوعات" />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 shadow-2xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-blue-700 font-extrabold">إجمالي الفواتير</span>
+            <FileText size={20} className="text-blue-600" />
+          </div>
+          <div className="text-3xl font-extrabold text-blue-900 font-tabular">{invoices.length}</div>
+        </div>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 shadow-2xs">
+          <div className="text-xs text-emerald-700 font-extrabold mb-2">إجمالي المبالغ المفوترة</div>
+          <div className="text-2xl font-extrabold text-emerald-900 font-tabular">{formatMoney(totalAmount)} <span className="text-xs">ج.م</span></div>
+        </div>
+        <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5 shadow-2xs">
+          <div className="text-xs text-purple-700 font-extrabold mb-2">نتائج البحث</div>
+          <div className="text-3xl font-extrabold text-purple-900 font-tabular">{filteredInvoices.length}</div>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <input
+          type="text"
+          placeholder="🔍 بحث باسم اللاعب، كود اللاعب، رقم التليفون، أو رقم الفاتورة..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full py-3 px-4 border border-slate-200 rounded-xl text-sm md:text-base bg-slate-50 focus:border-blue-500 focus:bg-white focus:outline-none transition-colors font-bold"
+        />
+      </div>
+
+      {/* Table */}
+      {filteredInvoices.length === 0 ? (
+        <EmptyState icon="🧾" title="لا توجد فواتير" subtitle={searchQuery ? 'لا توجد نتائج تطابق البحث' : 'سيتم إنشاء الفواتير تلقائياً عند تسجيل المدفوعات من صفحة السداد'} />
       ) : (
-        <div className="premium-card overflow-hidden">
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200">
           <div className="overflow-x-auto">
-            <table className="premium-table">
-              <thead>
+            <table className="w-full text-right">
+              <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th>رقم الفاتورة</th>
-                  <th>اللاعب</th>
-                  <th>المبلغ</th>
-                  <th>تاريخ الإصدار</th>
-                  <th>تحميل</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm">رقم الفاتورة</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm">اللاعب</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm hidden md:table-cell">الفرع</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm">المبلغ</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm hidden sm:table-cell">التاريخ</th>
+                  <th className="px-5 md:px-6 py-4 text-slate-600 font-extrabold text-sm text-center">تحميل</th>
                 </tr>
               </thead>
-              <tbody>
-                {invoices.map(inv => (
-                  <tr key={inv.id}>
-                    <td className="font-mono text-xs font-semibold text-slate-600">{inv.invoice_number}</td>
-                    <td className="font-semibold">{inv.player_name} <span className="text-xs text-slate-400">({inv.player_code})</span></td>
-                    <td className="tabular-data font-bold text-emerald-600">{formatMoney(inv.amount)}</td>
-                    <td className="text-sm">{formatDate(inv.issued_date)}</td>
-                    <td>
+              <tbody className="divide-y divide-slate-100">
+                {filteredInvoices.map(inv => (
+                  <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="px-5 md:px-6 py-4 md:py-5 font-mono text-xs md:text-sm font-bold text-slate-600">
+                      {inv.invoice_number}
+                    </td>
+                    <td className="px-5 md:px-6 py-4 md:py-5">
+                      <div className="font-extrabold text-slate-900 text-sm md:text-base">{inv.player_name || '—'}</div>
+                      <div className="text-[11px] text-slate-400 font-mono font-bold flex flex-wrap gap-2 mt-0.5">
+                        <span>كود: {inv.player_code || '—'}</span>
+                        {((inv as any).player_phone || (inv as any).player_parent_phone) && (
+                          <span className="text-emerald-700 font-semibold">📱 {(inv as any).player_phone || (inv as any).player_parent_phone}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 md:px-6 py-4 md:py-5 text-xs md:text-sm font-bold text-slate-500 hidden md:table-cell">
+                      {(inv as any).branch_name || '—'}
+                    </td>
+                    <td className="px-5 md:px-6 py-4 md:py-5 font-extrabold text-emerald-700 text-sm md:text-base font-tabular">
+                      {formatMoney(inv.amount)} <span className="text-[10px] text-slate-400">ج.م</span>
+                    </td>
+                    <td className="px-5 md:px-6 py-4 md:py-5 text-xs md:text-sm font-bold text-slate-500 font-tabular hidden sm:table-cell">
+                      {formatDate(inv.issued_date)}
+                    </td>
+                    <td className="px-5 md:px-6 py-4 md:py-5 text-center">
                       <button
                         onClick={() => generatePDF(inv)}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors cursor-pointer border border-blue-200"
+                        className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs md:text-sm font-extrabold hover:bg-blue-100 transition-all cursor-pointer border border-blue-200 flex items-center gap-1.5 mx-auto hover:scale-105 active:scale-95"
                       >
-                        📄 PDF
+                        <Download size={16} />
+                        PDF
                       </button>
                     </td>
                   </tr>
@@ -114,7 +242,7 @@ export default function InvoicesPage() {
 
       {/* Hidden Templates for PDF Generation */}
       <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
-        {invoices.map(inv => {
+        {filteredInvoices.map(inv => {
           const branch = branches.find(b => b.id === inv.branch_id);
           return (
             <div 
