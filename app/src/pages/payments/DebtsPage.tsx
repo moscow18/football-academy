@@ -1,19 +1,31 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useBranch } from '../../contexts/BranchContext';
+import { useToast } from '../../contexts/ToastContext';
 import { formatMoney, buildWhatsAppLink, debtReminderMessage, renewalReminderMessage, formatDate } from '../../lib/utils';
 import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
+import Modal from '../../components/ui/Modal';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import type { DebtItem } from '../../lib/types';
+import { ShieldCheck } from 'lucide-react';
 
 export default function DebtsPage() {
   const { branchFilter } = useBranch();
+  const { toast } = useToast();
   const [debts, setDebts] = useState<DebtItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [showDebtsOnly, setShowDebtsOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Single player debt waiver modal
+  const [selectedPlayerForWaive, setSelectedPlayerForWaive] = useState<DebtItem | null>(null);
+  const [waiveReason, setWaiveReason] = useState('عدم حضور / غياب خلال الشهر');
+  const [waiveAmount, setWaiveAmount] = useState('');
+  const [freezePlayer, setFreezePlayer] = useState(false);
+  const [waiveNotes, setWaiveNotes] = useState('');
+  const [isSubmittingWaive, setIsSubmittingWaive] = useState(false);
 
   const loadDebts = useCallback(async () => {
     if (initialLoading) setLoading(true);
@@ -47,42 +59,56 @@ export default function DebtsPage() {
   const totalDebtMonthly = monthlyPlayers.reduce((s, d) => s + (Number(d.debt_monthly) > 0 ? Number(d.debt_monthly) : 0), 0);
   const debtorsCount = monthlyPlayers.filter(d => Number(d.debt_monthly) > 0).length;
 
-  const clearAllPastDebts = async () => {
-    if (!confirm('هل أنت متأكد من تسوية وتصفية الشهور القديمة لكل اللاعبين حتى اليوم؟\n\nسيتم تسجيل دفعات بقيمة المستحقات القديمة لكل لاعب، ليبدأ الجميع بمديونية صفرية حتى بداية الشهر الجديد.')) return;
-    
+  const openWaiveModal = (player: DebtItem) => {
+    setSelectedPlayerForWaive(player);
+    setWaiveReason('عدم حضور / غياب خلال الشهر');
+    setWaiveAmount(String(Number(player.debt_monthly) || 0));
+    setFreezePlayer(false);
+    setWaiveNotes(`خصم وإعفاء مديونية لعدم الحضور بناءً على طلب الإدارة`);
+  };
+
+  const handleWaivePlayerDebt = async () => {
+    if (!selectedPlayerForWaive) return;
+    const amountNum = parseFloat(waiveAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast('error', 'يرجى إدخال مبلغ إعفاء أو خصم صحيح');
+      return;
+    }
+
+    setIsSubmittingWaive(true);
     try {
-      const { data: list, error: err1 } = await supabase.rpc('rpc_debt_list', { p_branch_id: branchFilter || null });
-      if (err1 || !list) {
-        alert('حدث خطأ أثناء جلب قائمة المديونيات');
-        return;
-      }
-      
-      const debtors = list.filter((d: any) => Number(d.debt) > 0);
-      if (debtors.length === 0) {
-        alert('لا توجد مديونيات سابقة لتصفيتها، جميع اللاعبين مسددين بالكامل!');
-        return;
-      }
-      
       const todayStr = new Date().toISOString().split('T')[0];
-      const newPayments = debtors.map((d: any) => ({
-        player_id: d.player_id,
-        branch_id: d.branch_id,
-        amount: Number(d.debt),
+      
+      // 1. Insert settlement payment record
+      const { error: pErr } = await supabase.from('payments').insert({
+        player_id: selectedPlayerForWaive.player_id,
+        branch_id: selectedPlayerForWaive.branch_id,
+        amount: amountNum,
         payment_date: todayStr,
         method: 'cash',
-        period_covered: 'تسوية الشهور القديمة حتى 20 يوليو 2026',
-        notes: 'تصفية الشهور القديمة آلياً بناءً على طلب الإدارة'
-      }));
-      
-      const { error: insertErr } = await supabase.from('payments').insert(newPayments);
-      if (insertErr) {
-        alert('حدث خطأ أثناء تسجيل الدفعات: ' + insertErr.message);
-      } else {
-        alert(`تم تسجيل دفع تسوية الشهور القديمة لعدد ${debtors.length} لاعب بنجاح!`);
-        loadDebts();
+        period_covered: `تسوية وإعفاء: ${waiveReason}`,
+        notes: waiveNotes || `إعفاء مديونية للاعب ${selectedPlayerForWaive.player_name}`
+      });
+
+      if (pErr) throw pErr;
+
+      // 2. If freeze player is checked, update status to suspended
+      if (freezePlayer) {
+        const { error: statusErr } = await supabase
+          .from('players')
+          .update({ status: 'suspended' })
+          .eq('id', selectedPlayerForWaive.player_id);
+        
+        if (statusErr) console.error('Error freezing player:', statusErr);
       }
+
+      toast('success', `تم تسوية وإعفاء مديونية اللاعب (${selectedPlayerForWaive.player_name}) بنجاح!`);
+      setSelectedPlayerForWaive(null);
+      loadDebts();
     } catch (err: any) {
-      alert('خطأ: ' + err.message);
+      toast('error', 'حدث خطأ أثناء التسوية: ' + err.message);
+    } finally {
+      setIsSubmittingWaive(false);
     }
   };
 
@@ -92,20 +118,17 @@ export default function DebtsPage() {
     <div className={`transition-opacity duration-200 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
       
       {/* Help Banner for Debt Explanation */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-5 shadow-sm font-arabic animate-fade-in">
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-2xl p-5 mb-5 shadow-sm font-arabic animate-fade-in">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-xl font-bold shrink-0 shadow-md">
             💡
           </div>
-          <div className="flex-1 text-sm text-slate-700 leading-relaxed">
-            <h3 className="font-bold text-base text-blue-950 mb-1">شرح تبسيط المديونية (دليل الموظفين الإداريين):</h3>
-            <p className="mb-2 text-slate-600">
-              <strong>المديونية</strong> تمثل الرسوم المستحقة على اللاعب عن الشهور المسجلة في الأكاديمية والتي لم يتم تحصيلها بعد.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs bg-white/80 p-3 rounded-lg border border-blue-100 font-medium">
-              <div>📌 <strong className="text-emerald-700">إجمالي المتوقع:</strong> قيمة الاشتراك ضرب عدد الشهور المسجلة.</div>
-              <div>📌 <strong className="text-blue-700">إجمالي المحصل:</strong> المدفوعات المسجلة للسنوات والشهور.</div>
-              <div>📌 <strong className="text-red-600">المديونية =</strong> (المتوقع - المحصل) = المبلغ المطلوب تحصيله.</div>
+          <div className="flex-1 text-sm text-slate-700 leading-relaxed space-y-2">
+            <h3 className="font-bold text-base text-blue-950">نظام تحصيل الاشتراكات والتعامل مع اللاعبين الغائبين:</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs bg-white/80 p-3 rounded-xl border border-blue-100 font-medium">
+              <div>📌 <strong className="text-emerald-700">1. الشهر بشهره:</strong> يتم استحقاق الاشتراك شهرياً لكل لاعب منتظم في التدريبات.</div>
+              <div>📌 <strong className="text-amber-700">2. لاعب لم يحضر شهر كامل؟</strong> اضغط زر <strong>"إعفاء غياب / تسوية"</strong> بجانب اسم اللاعب لخصم مديونية الشهر غير المحضور.</div>
+              <div>📌 <strong className="text-blue-700">3. تجميد الاشتراك:</strong> عند تجميد حساب اللاعب (تغيير حالته إلى "موقوف")، يتم إيقاف احتساب الشهور التالية عليه آلياً.</div>
             </div>
           </div>
         </div>
@@ -135,13 +158,6 @@ export default function DebtsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            <button
-              onClick={clearAllPastDebts}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg font-bold text-xs hover:from-emerald-700 hover:to-teal-700 transition-all shadow-sm flex items-center gap-1.5"
-              title="اعتبار جميع الشهور القديمة مدفوعة لجميع اللاعبين الحاليين"
-            >
-              ✅ تسوية الشهور القديمة للجميع
-            </button>
             <input
               type="text"
               placeholder="بحث بالاسم أو الكود..."
@@ -176,7 +192,7 @@ export default function DebtsPage() {
                   <th>المديونية (شهري)</th>
                   <th>آخر دفعة</th>
                   <th>موعد التجديد</th>
-                  <th>إجراء</th>
+                  <th>إجراءات الإدارة</th>
                 </tr>
               </thead>
               <tbody>
@@ -197,12 +213,21 @@ export default function DebtsPage() {
                     <td className="text-sm font-bold text-slate-800">{formatDate(d.next_payment_date)}</td>
                     <td>
                       <div className="flex gap-2 items-center flex-wrap">
+                        {Number(d.debt_monthly) > 0 && (
+                          <button
+                            onClick={() => openWaiveModal(d)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+                            title="تسوية أو إعفاء مديونية لاعب غائب"
+                          >
+                            <ShieldCheck size={14} /> إعفاء غياب / تسوية
+                          </button>
+                        )}
                         {Number(d.debt_monthly) > 0 && (d.parent_phone || d.phone) && (
                           <a
                             href={buildWhatsAppLink(d.parent_phone || d.phone || '', debtReminderMessage(d.player_name, Number(d.debt_monthly), d.next_payment_date))}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded-full text-xs font-bold hover:bg-red-600 transition-colors no-underline whitespace-nowrap"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600 transition-colors no-underline whitespace-nowrap"
                             title="تنبيه بالمديونية"
                           >
                             📱 مديونية
@@ -213,7 +238,7 @@ export default function DebtsPage() {
                             href={buildWhatsAppLink(d.parent_phone || d.phone || '', renewalReminderMessage(d.player_name, d.next_payment_date, d.last_payment_date))}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-500 text-white rounded-full text-xs font-bold hover:bg-emerald-600 transition-colors no-underline whitespace-nowrap"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors no-underline whitespace-nowrap"
                             title="تذكير بموعد التجديد القادم"
                           >
                             📅 تجديد
@@ -228,6 +253,85 @@ export default function DebtsPage() {
           </div>
         </div>
       )}
+
+      {/* Modal: Single Player Debt Exemption / Settlement */}
+      <Modal
+        isOpen={!!selectedPlayerForWaive}
+        onClose={() => setSelectedPlayerForWaive(null)}
+        title="🛡️ تسوية وإعفاء مديونية لاعب غائب"
+        footer={
+          <div className="flex gap-2 justify-end font-[Cairo]">
+            <button
+              onClick={handleWaivePlayerDebt}
+              disabled={isSubmittingWaive}
+              className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-sm transition-all shadow-sm cursor-pointer disabled:opacity-50"
+            >
+              {isSubmittingWaive ? 'جاري تنفيذ الإعفاء...' : 'حفظ وتسوية الإعفاء'}
+            </button>
+            <button
+              onClick={() => setSelectedPlayerForWaive(null)}
+              className="px-5 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 cursor-pointer"
+            >
+              إلغاء
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4 font-[Cairo]">
+          <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-amber-900 text-xs font-bold space-y-1">
+            <div>اللاعب: <span className="text-amber-950 font-extrabold text-sm">{selectedPlayerForWaive?.player_name}</span></div>
+            <div>المديونية الحالية المسجلة: <span className="text-red-600 font-extrabold text-sm font-tabular">{formatMoney(selectedPlayerForWaive?.debt_monthly || 0)} ج.م</span></div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">سبب الإعفاء أو الخصم *</label>
+            <select
+              value={waiveReason}
+              onChange={(e) => setWaiveReason(e.target.value)}
+              className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-xl text-sm font-[Cairo] focus:border-amber-500 focus:outline-none"
+            >
+              <option value="عدم حضور / غياب خلال الشهر">عدم حضور / غياب خلال الشهر</option>
+              <option value="خصم خاص بناءً على طلب ولي الأمر والمدير">خصم خاص بناءً على طلب ولي الأمر والمدير</option>
+              <option value="تسوية مستحقات قديمة">تسوية مستحقات قديمة</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">مبلغ الإعفاء / الخصم المراد تنفيذه (ج.م) *</label>
+            <input
+              type="number"
+              value={waiveAmount}
+              onChange={(e) => setWaiveAmount(e.target.value)}
+              className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-xl text-sm font-[Cairo] focus:border-amber-500 focus:outline-none"
+              dir="ltr"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">ملاحظات والتفاصيل</label>
+            <input
+              type="text"
+              value={waiveNotes}
+              onChange={(e) => setWaiveNotes(e.target.value)}
+              className="w-full py-2.5 px-3 border-2 border-slate-200 rounded-xl text-sm font-[Cairo] focus:border-amber-500 focus:outline-none"
+              placeholder="مثال: خصم شهر يونيو لعدم الحضور"
+            />
+          </div>
+
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="freezePlayerChk"
+              checked={freezePlayer}
+              onChange={(e) => setFreezePlayer(e.target.checked)}
+              className="w-5 h-5 accent-amber-600 cursor-pointer"
+            />
+            <label htmlFor="freezePlayerChk" className="text-xs font-bold text-slate-800 cursor-pointer">
+              تجميد حساب اللاعب (تغيير حالته إلى "موقوف") حتى لا تُحسب عليه الشهور القادمة.
+            </label>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
