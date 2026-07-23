@@ -12,7 +12,7 @@ import type { Payment, Player } from '../../lib/types';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { FileText, Users, X, Search, Trash2, RotateCcw } from 'lucide-react';
+import { FileText, Users, X, Search, Trash2 } from 'lucide-react';
 
 const PAGE_SIZE = 50;
 
@@ -331,35 +331,6 @@ export default function PaymentsPage() {
     });
   }
 
-  function rollbackBulkSettlement() {
-    setConfirmConfig({
-      isOpen: true,
-      title: '⚠️ تراجع عن تسوية الشهور القديمة بالخطأ',
-      message: 'هل أنت متأكد من إلغاء وحذف كافة دفعات "تسوية الشهور القديمة" التي تم تسجيلها آلياً بالخطأ اليوم؟\n\nسيتم استعادة المديونيات الحقيقية المتبقية لجميع اللاعبين فوراً.',
-      confirmText: 'نعم، التراجع وحذف الدفعات التلقائية',
-      cancelText: 'إلغاء',
-      variant: 'danger',
-      onConfirm: async () => {
-        try {
-          // Delete all payments where notes include 'تصفية الشهور القديمة' or 'تسوية الشهور القديمة'
-          const { error } = await supabase
-            .from('payments')
-            .delete()
-            .or('notes.ilike.%تصفية الشهور القديمة%,notes.ilike.%تسوية الشهور القديمة%');
-
-          if (error) throw error;
-
-          toast('success', 'تم التراجع عن التسوية التلقائية وحذف جميع الدفعات المسجلة بالخطأ بنجاح! 🗑️');
-          loadPayments();
-        } catch (err: any) {
-          toast('error', 'حدث خطأ أثناء التراجع: ' + err.message);
-        } finally {
-          setConfirmConfig(prev => ({ ...prev, isOpen: false }));
-        }
-      }
-    });
-  }
-
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -375,14 +346,6 @@ export default function PaymentsPage() {
             className="w-full py-2 px-4 border-2 border-slate-200 rounded-lg font-[Cairo] text-sm bg-white focus:border-emerald-500 focus:outline-none"
           />
         </div>
-        <button
-          onClick={rollbackBulkSettlement}
-          className="py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-xs transition-all cursor-pointer shadow-sm flex items-center gap-1.5 font-arabic"
-          title="حذف كل الدفعات الناتجة عن زر تسوية الجميع بالخطأ"
-        >
-          <RotateCcw size={15} />
-          <span>تراجع عن تسوية الجميع بالخطأ</span>
-        </button>
         <button onClick={() => setShowForm(true)} className="py-2 px-4 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-all cursor-pointer shadow-sm">
           + تسجيل دفعة
         </button>

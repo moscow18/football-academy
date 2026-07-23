@@ -7,7 +7,7 @@ import { BranchBadge } from '../../components/ui/Badge';
 import { PageLoading, EmptyState } from '../../components/ui/LoadingSpinner';
 import Modal from '../../components/ui/Modal';
 import { useRealtimeRefresh } from '../../lib/useRealtimeRefresh';
-import { CheckCircle2, XCircle, RotateCcw, Search, Check, PauseCircle, Calendar } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, Check, PauseCircle, Calendar } from 'lucide-react';
 
 interface SimpleMonthPlayer {
   id: string;
@@ -191,28 +191,6 @@ export default function DebtsPage() {
     }
   };
 
-  // Rollback Bulk Settlement
-  const rollbackBulkSettlement = async () => {
-    if (!confirm('هل أنت متأكد من إلغاء وحذف كافة دفعات "تسوية الشهور القديمة" التي تم تسجيلها آلياً بالخطأ اليوم؟')) return;
-
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('payments')
-        .delete()
-        .or('notes.ilike.%تصفية الشهور القديمة%,notes.ilike.%تسوية الشهور القديمة%');
-
-      if (error) throw error;
-
-      toast('success', 'تم التراجع عن التسوية التلقائية وحذف جميع الدفعات المسجلة بالخطأ بنجاح! 🗑️');
-      loadMonthData();
-    } catch (err: any) {
-      toast('error', 'حدث خطأ أثناء التراجع: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (initialLoading) return <PageLoading />;
 
   return (
@@ -229,27 +207,16 @@ export default function DebtsPage() {
           </p>
         </div>
 
-        {/* Month Selector & Rollback */}
-        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto font-[Cairo]">
-          <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border border-slate-200 rounded-xl shadow-2xs">
-            <Calendar size={16} className="text-emerald-600" />
-            <span className="text-slate-500 font-bold text-xs font-arabic">اختر الشهر:</span>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="border-none bg-transparent font-tabular font-bold text-slate-800 focus:outline-none cursor-pointer focus:ring-0 text-sm font-[Cairo]"
-            />
-          </div>
-
-          <button
-            onClick={rollbackBulkSettlement}
-            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer font-arabic"
-            title="تراجع عن أي دفعات تسوية تمت بالخطأ"
-          >
-            <RotateCcw size={14} />
-            <span>تراجع عن تسوية بالخطأ</span>
-          </button>
+        {/* Month Selector */}
+        <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border border-slate-200 rounded-xl shadow-2xs self-start sm:self-auto font-[Cairo]">
+          <Calendar size={16} className="text-emerald-600" />
+          <span className="text-slate-500 font-bold text-xs font-arabic">اختر الشهر:</span>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="border-none bg-transparent font-tabular font-bold text-slate-800 focus:outline-none cursor-pointer focus:ring-0 text-sm font-[Cairo]"
+          />
         </div>
       </div>
 
