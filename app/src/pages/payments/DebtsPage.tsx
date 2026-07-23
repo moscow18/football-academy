@@ -86,6 +86,11 @@ export default function DebtsPage() {
       const duePlayers: SimpleMonthPlayer[] = [];
 
       (playersData || []).forEach((p: any) => {
+        // ⚡ EXCLUDE LEAGUE PLAYERS (League players pay quarterly in PeriodicSubscriptionsPage)
+        if (p.payment_type === 'quarterly' || Number(p.fee_amount_periodic || 0) > 0) {
+          return;
+        }
+
         const regDateStr = p.registration_date || (p.created_at ? p.created_at.split('T')[0] : '2026-07-01');
         const regDate = new Date(regDateStr);
         const regY = regDate.getFullYear();
@@ -97,12 +102,10 @@ export default function DebtsPage() {
 
         // Check if player registered AFTER selectedMonth OR (in selectedMonth AFTER closingDay)
         if (regY > selY || (regY === selY && regM > selM)) {
-          // Registered in future month -> not due yet
           return;
         }
 
         if (regY === selY && regM === selM && regD > closingDay) {
-          // Registered in selected month AFTER closing day -> first due in next month!
           return;
         }
 

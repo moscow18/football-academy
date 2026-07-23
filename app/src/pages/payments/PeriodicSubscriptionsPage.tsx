@@ -649,7 +649,7 @@ export default function PeriodicSubscriptionsPage() {
                   {!branchFilter && <th>الفرع</th>}
                   <th>المجموعة</th>
                   <th>قيمة الاشتراك الدوري</th>
-                  <th>حالة سداد يوليو 2026</th>
+                  <th>حالة سداد الاشتراك الدوري (كل 3 شهور)</th>
                   <th>الإجراء</th>
                 </tr>
               </thead>
@@ -668,15 +668,14 @@ export default function PeriodicSubscriptionsPage() {
                       {!branchFilter && <td><BranchBadge branchId={d.branch_id} branchName={d.branch_name} /></td>}
                       <td className="text-slate-600 text-sm">{d.group_name || '—'}</td>
                       <td className="tabular-data font-bold text-emerald-700">{formatMoney(d.fee_amount_periodic)}</td>
-                      <td className="tabular-data text-center">{Math.ceil(d.months_enrolled / 3)}</td>
                       <td className="text-center">
                         {isPaid ? (
                           <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-extrabold border border-emerald-200">
-                            🟢 تم سداد يوليو ✅
+                            🟢 ساري — تم سداد الربع الحالي ✅ (كل 3 شهور)
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-extrabold border border-rose-200">
-                            🔴 لم يسدد بعد ⏳
+                            🔴 يستحق تجديد الربع ⏳
                           </span>
                         )}
                       </td>
