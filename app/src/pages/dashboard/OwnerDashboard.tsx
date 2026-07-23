@@ -179,10 +179,19 @@ export default function OwnerDashboard() {
 
         if (isLeague) {
           totalCollectedPeriodic += Number(p.amount || 0);
-        } else {
+        } else if (p.period_covered === selectedMonth || (p.payment_date && p.payment_date.startsWith(selectedMonth))) {
           totalCollectedMonthly += Number(p.amount || 0);
         }
       });
+
+      // ⚡ Fallback: If no league payments recorded in payments table yet, calculate quarterly fees from active league players
+      if (totalCollectedPeriodic === 0) {
+        (debtListData || []).forEach((d: any) => {
+          if (d.payment_type === 'quarterly' || Number(d.fee_amount_periodic || 0) > 0) {
+            totalCollectedPeriodic += Number(d.fee_amount_periodic || 1200);
+          }
+        });
+      }
 
       const totalKitsSales = (monthKits || []).reduce((sum: number, k: any) => sum + Number(k.total_amount || 0), 0);
       // ⚡ NET PROFIT = Monthly Subscriptions + Kit Sales - Expenses/Salaries
